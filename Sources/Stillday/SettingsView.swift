@@ -7,6 +7,10 @@ struct SettingsView: View {
     @ObservedObject var store: AppState
     @ObservedObject var navigation: SettingsNavigation
     @State private var showDelete = false
+    @Environment(\.accessibilityReduceMotion) private var reducedMotion
+    @Namespace private var selectionIndicator
+
+    private var pageID: String { navigation.page == "phase" ? phase?.id.uuidString ?? "empty" : navigation.page }
 
     private var phase: Phase? { store.preferences.phases.first { $0.id == navigation.selection } ?? store.activePhase ?? store.sortedPhases.first }
 
@@ -20,14 +24,21 @@ struct SettingsView: View {
                         Image(systemName: "exclamationmark.circle")
                         Text(error).font(.system(size: 12)).textSelection(.enabled)
                         Spacer()
-                        Button { store.dismissError() } label: { Image(systemName: "xmark") }.buttonStyle(.plain).help("Dismiss error")
+                        Button { store.dismissError() } label: { Image(systemName: "xmark") }.buttonStyle(InteractiveButtonStyle()).help("Dismiss error")
                     }
                     .foregroundStyle(Palette.errorInk).padding(14)
                     .background(Palette.errorBackground)
                 }
-                if navigation.page == "library" { libraryPage }
-                else if navigation.page == "general" { generalPage }
-                else if let phase { phasePage(phase) }
+                ZStack(alignment: .topLeading) {
+                    Group {
+                        if navigation.page == "library" { libraryPage }
+                        else if navigation.page == "general" { generalPage }
+                        else if let phase { phasePage(phase) }
+                    }
+                    .id(pageID)
+                    .transition(reducedMotion ? .opacity : .opacity.combined(with: .offset(x: 10)))
+                }
+                .animation(Motion.page(reducedMotion), value: pageID)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Palette.background)
@@ -38,6 +49,9 @@ struct SettingsView: View {
         .preferredColorScheme(store.preferences.appearance.colorScheme)
         .frame(minWidth: 960, minHeight: 700)
         .onAppear { navigation.selection = store.activePhaseID }
+        .animation(Motion.feedback(reducedMotion), value: navigation.selection)
+        .animation(Motion.feedback(reducedMotion), value: navigation.page)
+        .animation(Motion.fade, value: store.error)
         .confirmationDialog("Delete this phase? Its image files will stay in your folder.", isPresented: $showDelete, titleVisibility: .visible) {
             Button("Delete phase", role: .destructive) {
                 if let phase { store.deletePhase(phase.id); navigation.selection = store.sortedPhases.first?.id }
@@ -58,7 +72,7 @@ struct SettingsView: View {
                 Button {
                     if let id = store.addPhase() { navigation.selection = id; navigation.page = "phase" }
                 } label: { Image(systemName: "plus").font(.system(size: 12, weight: .medium)) }
-                .buttonStyle(.plain).help("Add a phase").accessibilityLabel("Add a phase")
+                .buttonStyle(InteractiveButtonStyle()).help("Add a phase").accessibilityLabel("Add a phase")
             }.padding(.bottom, 12)
             ForEach(store.sortedPhases) { phase in
                 Button {
@@ -76,9 +90,9 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.horizontal, 12).padding(.vertical, 12)
-                    .background(navigation.page == "phase" && self.phase?.id == phase.id ? Palette.selection : Color.clear, in: RoundedRectangle(cornerRadius: 11))
+                    .background { selectionBackground(navigation.page == "phase" && self.phase?.id == phase.id) }
                     .contentShape(Rectangle())
-                }.buttonStyle(.plain).padding(.horizontal, -10).padding(.bottom, 4)
+                }.buttonStyle(InteractiveButtonStyle()).padding(.horizontal, -10).padding(.bottom, 4)
             }
             Rectangle().fill(Palette.line).frame(height: 1).padding(.vertical, 22)
             navButton("Wallpaper library", symbol: "square.grid.2x2", target: "library")
@@ -130,7 +144,7 @@ struct SettingsView: View {
                             } label: {
                                 Label("Set wallpaper", systemImage: "arrow.up.right").font(.system(size: 11, weight: .medium)).padding(.horizontal, 13).padding(.vertical, 10)
                                     .background(.white.opacity(0.17), in: Capsule()).overlay(Capsule().strokeBorder(.white.opacity(0.25)))
-                            }.buttonStyle(PressStyle()).disabled(!store.preferences.enabled || !store.preferences.wallpaperEnabled)
+                            }.buttonStyle(InteractiveButtonStyle()).disabled(!store.preferences.enabled || !store.preferences.wallpaperEnabled)
                         }.foregroundStyle(.white).padding(24)
                     } else {
                         Rectangle().fill(Palette.sidebar)
@@ -150,11 +164,12 @@ struct SettingsView: View {
                     }
                     Spacer()
                     if store.library.isEmpty { Button("Choose folder") { store.chooseFolder() } }
-                    else { Text("\(phase.wallpapers.count) selected").font(.system(size: 11, design: .monospaced)).foregroundStyle(Palette.muted) }
+                    else { Text("\(phase.wallpapers.count) selected").font(.system(size: 11, design: .monospaced)).foregroundStyle(Palette.muted)
+                        .contentTransition(.numericText()).animation(Motion.feedback(reducedMotion), value: phase.wallpapers.count) }
                 }
                 wallpaperGrid(phase: phase)
                 if store.preferences.phases.count > 1 {
-                    Button("Delete phase…", role: .destructive) { showDelete = true }.buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(Palette.muted).padding(.top, 8)
+                    Button("Delete phase…", role: .destructive) { showDelete = true }.buttonStyle(InteractiveButtonStyle()).font(.system(size: 11)).foregroundStyle(Palette.muted).padding(.top, 8)
                 }
             }.padding(32)
         }
@@ -173,12 +188,13 @@ struct SettingsView: View {
                         WallpaperImage(path: path, pixels: 380)
                             .frame(height: 96).clipped().clipShape(RoundedRectangle(cornerRadius: 9))
                             .overlay(alignment: .topTrailing) {
-                                if selected { Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(.white).padding(6).background(Palette.accent, in: Circle()).padding(7) }
+                                if selected { Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(.white).padding(6).background(Palette.accent, in: Circle()).padding(7).transition(reducedMotion ? .opacity : .scale.combined(with: .opacity)) }
                             }
                             .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(selected ? Palette.accent : .clear, lineWidth: 2))
+                            .animation(Motion.feedback(reducedMotion), value: selected)
                         Text(imageTitle(path)).font(.system(size: 10, weight: .medium)).lineLimit(1)
                     }.contentShape(Rectangle())
-                }.buttonStyle(PressStyle()).help(phase == nil ? "Set this wallpaper" : "Include or remove this wallpaper")
+                }.buttonStyle(InteractiveButtonStyle()).help(phase == nil ? "Set this wallpaper" : "Include or remove this wallpaper")
             }
         }.overlay {
             if paths.isEmpty {
@@ -254,11 +270,21 @@ struct SettingsView: View {
             control()
         }.padding(.vertical, 22)
     }
+    @ViewBuilder
+    private func selectionBackground(_ selected: Bool) -> some View {
+        if selected {
+            RoundedRectangle(cornerRadius: 11)
+                .fill(Palette.selection.opacity(0.72))
+                .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(.white.opacity(0.12)))
+                .matchedGeometryEffect(id: "navigation-selection", in: selectionIndicator, properties: reducedMotion ? [] : .frame)
+        }
+    }
+
     private func navButton(_ title: String, symbol: String, target: String) -> some View {
         Button { navigation.page = target } label: {
             Label(title, systemImage: symbol).font(.system(size: 12)).padding(.vertical, 11).padding(.horizontal, 11).frame(maxWidth: .infinity, alignment: .leading)
-                .background(navigation.page == target ? Palette.selection : .clear, in: RoundedRectangle(cornerRadius: 9))
-        }.buttonStyle(.plain).padding(.horizontal, -10)
+                .background { selectionBackground(navigation.page == target) }
+        }.buttonStyle(InteractiveButtonStyle()).padding(.horizontal, -10)
     }
     private func pageHeader(_ caption: String, title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -283,6 +309,7 @@ private struct PhaseEditor: View {
     @State private var name: String
     @State private var time: Date
     @State private var youtube: String
+    @Environment(\.accessibilityReduceMotion) private var formReducedMotion
     init(store: AppState, phase: Phase) {
         self.store = store; self.phase = phase
         _name = State(initialValue: phase.name)
@@ -295,7 +322,7 @@ private struct PhaseEditor: View {
             HStack(alignment: .bottom, spacing: 16) {
                 VStack(alignment: .leading, spacing: 7) {
                     fieldLabel("Phase name")
-                    TextField("Morning", text: $name).textFieldStyle(.roundedBorder).accessibilityLabel("Phase name")
+                    TextField("Morning", text: $name).textFieldStyle(.roundedBorder).modifier(FieldFeedback()).accessibilityLabel("Phase name")
                 }
                 VStack(alignment: .leading, spacing: 7) {
                     fieldLabel("Starts at")
@@ -328,7 +355,7 @@ private struct PhaseEditor: View {
                     } else {
                         fieldLabel("YouTube video link")
                         HStack {
-                            TextField("https://www.youtube.com/watch?v=…", text: $youtube).textFieldStyle(.roundedBorder).accessibilityLabel("YouTube video link")
+                            TextField("https://www.youtube.com/watch?v=…", text: $youtube).textFieldStyle(.roundedBorder).modifier(FieldFeedback()).accessibilityLabel("YouTube video link")
                             Button("Save") {
                                 let value = youtube.trimmingCharacters(in: .whitespacesAndNewlines)
                                 guard value.isEmpty || YouTube.videoID(from: value) != nil else { return }
@@ -341,9 +368,10 @@ private struct PhaseEditor: View {
                             Link("Google privacy", destination: URL(string: "https://policies.google.com/privacy")!)
                         }.font(.system(size: 9))
                     }
-                }.frame(maxWidth: .infinity, alignment: .leading)
+                }.id(phase.audioSource).transition(.opacity).frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .animation(Motion.page(formReducedMotion), value: phase.audioSource)
     }
     private var minute: Int { let parts = Calendar.current.dateComponents([.hour, .minute], from: time); return (parts.hour ?? 0) * 60 + (parts.minute ?? 0) }
     private func fieldLabel(_ title: String) -> some View { Text(title).font(.system(size: 10, weight: .medium)).foregroundStyle(Palette.muted) }
@@ -355,29 +383,25 @@ struct WallpaperImage: View {
     let pixels: Int
     @State private var image: NSImage?
     @State private var loaded = false
+    @State private var representedPath: String?
+    @Environment(\.accessibilityReduceMotion) private var reducedMotion
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Palette.sidebar
-                if let image { Image(nsImage: image).resizable().scaledToFill().frame(width: geometry.size.width, height: geometry.size.height).clipped() }
+                if let image { Image(nsImage: image).resizable().scaledToFill().frame(width: geometry.size.width, height: geometry.size.height).clipped().id(representedPath).transition(.opacity) }
                 else if loaded { Image(systemName: "photo.badge.exclamationmark").foregroundStyle(Palette.muted).accessibilityLabel("Image unavailable") }
                 else { RoundedRectangle(cornerRadius: 8).fill(Palette.line.opacity(0.6)).padding(10).accessibilityLabel("Loading image") }
             }
         }
+        .animation(reducedMotion ? .easeOut(duration: 0.1) : Motion.fade, value: representedPath)
         .task(id: path) { loaded = false
-            image = nil
             let result = await ImageCache.shared.image(path: path, pixels: pixels)
             guard !Task.isCancelled else { return }
-            image = result; loaded = true }
+            image = result; representedPath = path; loaded = true }
     }
 }
 
-private struct PressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1).opacity(configuration.isPressed ? 0.85 : 1)
-    }
-}
 private func eyebrow(_ title: String) -> some View { Text(title).font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1.7).foregroundStyle(Palette.muted) }
 func imageTitle(_ path: String) -> String {
     let stem = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent

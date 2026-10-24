@@ -109,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         guard let button = statusItem?.button else { return }
         let panel = NSPopover()
         panel.behavior = .transient
+        panel.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         panel.delegate = self
         let controller = NSHostingController(rootView: MenuBarView(store: store,
             openSettings: { [weak self] in self?.popover?.performClose(nil); self?.showSettings() },

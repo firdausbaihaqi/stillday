@@ -6,6 +6,7 @@ struct MenuBarView: View {
     var openSettings: () -> Void
     var openYouTube: () -> Void
     var quit: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reducedMotion
 
     private var path: String? { store.currentWallpaper ?? store.activePhase?.wallpapers.first }
     private var canChangeWallpaper: Bool { store.preferences.enabled && store.preferences.wallpaperEnabled && !(store.activePhase?.wallpapers.isEmpty ?? true) }
@@ -24,12 +25,13 @@ struct MenuBarView: View {
                     Image(systemName: "gearshape").font(.system(size: 15, weight: .medium)).foregroundStyle(.white)
                         .frame(width: 34, height: 34).background(.ultraThinMaterial, in: Circle())
                         .overlay(Circle().strokeBorder(.white.opacity(0.2)))
-                }.buttonStyle(.plain).padding(16).help("Open Settings").accessibilityLabel("Open Settings")
+                }.buttonStyle(InteractiveButtonStyle()).padding(16).help("Open Settings").accessibilityLabel("Open Settings")
                 VStack(alignment: .leading, spacing: 5) {
                     Text((store.activePhase?.name ?? "YOUR DAY").uppercased())
                         .font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1.8)
                     Text(path.map(imageTitle) ?? "Make room for a view.")
                         .font(.system(size: 23, weight: .medium, design: .rounded)).tracking(-0.4).lineLimit(2)
+                        .contentTransition(.opacity).animation(Motion.fade, value: path)
                 }.foregroundStyle(.white).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading).padding(22)
             }.frame(height: 230).clipped()
 
@@ -48,6 +50,7 @@ struct MenuBarView: View {
                 if store.preferences.audioEnabled {
                     HStack(spacing: 6) {
                         Image(systemName: store.audioPlaying ? "speaker.wave.2" : "speaker.slash")
+                            .contentTransition(reducedMotion ? .opacity : .symbolEffect(.replace))
                         Text(store.preferences.enabled ? store.audioStatus : "Sound paused with Stillday").lineLimit(1)
                     }.font(.system(size: 10)).foregroundStyle(Palette.muted)
                 }
@@ -59,7 +62,8 @@ struct MenuBarView: View {
                                     WallpaperImage(path: path, pixels: 180).frame(width: 62, height: 43).clipped()
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
                                         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(self.path == path ? Palette.accent : .clear, lineWidth: 2))
-                                }.buttonStyle(.plain).disabled(!canChangeWallpaper).help(imageTitle(path)).accessibilityLabel("Use \(imageTitle(path))")
+                                        .animation(Motion.feedback(reducedMotion), value: self.path == path)
+                                }.buttonStyle(InteractiveButtonStyle()).disabled(!canChangeWallpaper).help(imageTitle(path)).accessibilityLabel("Use \(imageTitle(path))")
                             }
                         }.padding(2)
                     }.frame(height: 47)
@@ -72,18 +76,25 @@ struct MenuBarView: View {
                 }
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(store.preferences.enabled ? "Following your day" : "Scheduling paused").font(.system(size: 11, weight: .medium))
+                        Text(store.preferences.enabled ? "Following your day" : "Scheduling paused").font(.system(size: 11, weight: .medium)).contentTransition(.opacity)
                         if let next = store.nextChange {
                             Text("Next phase · \(next.formatted(date: .omitted, time: .shortened))").font(.system(size: 10, design: .monospaced)).foregroundStyle(Palette.muted)
                         }
                     }
                     Spacer()
-                    Button(action: quit) { Image(systemName: "power").font(.system(size: 13)).padding(8) }.buttonStyle(.plain).help("Quit Stillday").accessibilityLabel("Quit Stillday")
+                    Button(action: quit) { Image(systemName: "power").font(.system(size: 13)).padding(8) }.buttonStyle(InteractiveButtonStyle()).help("Quit Stillday").accessibilityLabel("Quit Stillday")
                 }.padding(.top, 13).overlay(alignment: .top) { Rectangle().fill(Palette.line).frame(height: 1) }
             }.padding(22)
         }
         .frame(width: 360)
-        .foregroundStyle(Palette.ink).background(Palette.background)
+        .foregroundStyle(Palette.ink)
+        .background(Palette.background)
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.13)))
+        .animation(Motion.page(reducedMotion), value: store.preferences.audioEnabled)
+        .animation(Motion.feedback(reducedMotion), value: store.preferences.enabled)
+        .animation(Motion.feedback(reducedMotion), value: store.audioPlaying)
+        .animation(Motion.feedback(reducedMotion), value: store.preferences.wallpaperEnabled)
+        .animation(Motion.fade, value: store.error)
         .tint(Palette.accent)
         .preferredColorScheme(store.preferences.appearance.colorScheme)
     }
@@ -92,8 +103,9 @@ struct MenuBarView: View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: size == 62 ? 23 : 14, weight: .medium))
                 .frame(width: size, height: size)
-                .background(Palette.selection, in: Circle()).overlay(Circle().strokeBorder(Palette.line))
-        }.buttonStyle(.plain).help(title).accessibilityLabel(title)
+                .contentTransition(reducedMotion ? .opacity : .symbolEffect(.replace))
+                .background(.thinMaterial, in: Circle()).overlay(Circle().strokeBorder(.white.opacity(0.16)))
+        }.buttonStyle(InteractiveButtonStyle()).help(title).accessibilityLabel(title)
     }
     private func feature(_ title: String, symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -103,8 +115,8 @@ struct MenuBarView: View {
                 Text(enabled ? "On" : "Off").font(.system(size: 9, design: .monospaced)).foregroundStyle(Palette.muted)
             }.frame(maxWidth: .infinity).padding(.vertical, 13)
                 .foregroundStyle(enabled ? Palette.accent : Palette.muted)
-                .background(enabled ? Palette.selection : .clear, in: RoundedRectangle(cornerRadius: 13))
+                .background(Palette.selection.opacity(enabled ? 0.55 : 0.12), in: RoundedRectangle(cornerRadius: 13))
                 .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(Palette.line))
-        }.buttonStyle(.plain).accessibilityLabel("\(title), \(enabled ? "on" : "off")")
+        }.buttonStyle(InteractiveButtonStyle()).accessibilityLabel("\(title), \(enabled ? "on" : "off")")
     }
 }
