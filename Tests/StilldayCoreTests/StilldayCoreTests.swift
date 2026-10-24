@@ -41,6 +41,25 @@ struct StilldayCoreTests {
         expectEqual(Schedule.nextWallpaper(in: ["a", "b"], current: "b"), "a")
         expectEqual(Schedule.nextWallpaper(in: ["a", "b"], current: "removed"), "a")
     }
+    func testAppearanceMigrationAndPersistence() throws {
+        let old = Preferences()
+        let encoder = JSONEncoder()
+        guard var legacy = try JSONSerialization.jsonObject(with: encoder.encode(old)) as? [String: Any] else {
+            throw ValidationError("Preferences must encode as an object.")
+        }
+        legacy.removeValue(forKey: "appearance")
+        let migrated = try JSONDecoder().decode(Preferences.self, from: JSONSerialization.data(withJSONObject: legacy))
+        expectEqual(migrated.appearance, .system)
+        expectEqual(migrated.phases, old.phases)
+        expectEqual(migrated.enabled, old.enabled)
+        for mode in AppAppearance.allCases {
+            var value = old; value.appearance = mode
+            expectEqual(try JSONDecoder().decode(Preferences.self, from: encoder.encode(value)), value)
+        }
+        expectNil(Schedule.previousWallpaper(in: [], current: nil))
+        expectEqual(Schedule.previousWallpaper(in: ["a", "b"], current: "a"), "b")
+        expectEqual(Schedule.previousWallpaper(in: ["a", "b"], current: "b"), "a")
+    }
     func testInvalidPreferencesAreRejected() {
         var value = Preferences()
         value.phases[1].startMinute = value.phases[0].startMinute
@@ -109,6 +128,7 @@ struct RunChecks {
         tests.testNextBoundaryDoesNotRepeatCurrentBoundary()
         tests.testDaylightSavingBoundaryRemainsInFuture()
         tests.testEmptyScheduleAndWallpaperRotation()
+        try tests.testAppearanceMigrationAndPersistence()
         tests.testInvalidPreferencesAreRejected()
         tests.testYouTubeLinksAreValidatedBeforeEmbedding()
         try tests.testPreferenceRoundTripAndCorruptFilePreservation()

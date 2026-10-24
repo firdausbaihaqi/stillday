@@ -82,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func refreshMenu() {
         guard let store else { return }
+        NSApp.appearance = store.preferences.appearance.nativeAppearance
         let menu = NSMenu()
         menu.autoenablesItems = false
         let header = NSMenuItem(title: "Stillday  ·  \(store.activePhase?.name ?? "No phase")", action: nil, keyEquivalent: "")
@@ -142,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.title = "Stillday"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
-        window.backgroundColor = NSColor(calibratedRed: 0.96, green: 0.96, blue: 0.94, alpha: 1)
+        window.backgroundColor = .windowBackgroundColor
         window.minSize = NSSize(width: 960, height: 700)
         window.contentView = NSHostingView(rootView: SettingsView(store: store, navigation: navigation))
         window.delegate = self

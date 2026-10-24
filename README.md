@@ -2,9 +2,9 @@
 
 Inspired by [Portal](https://portal.app). An independent native macOS alternative.
 
-## Learning checkpoint 5
+## Learning checkpoint 6
 
-Reproduce the navigation stalls, then move ImageIO onto two bounded actors and share pending requests. Add a diagnostic benchmark and retain path-free before/after data. This is the key concurrency/performance chapter.
+Introduce semantic adaptive colors, an appearance preference, and backward-compatible settings decoding. Add regression checks for migration and all three appearance modes.
 
 Run `swift run StilldayChecks` for the standalone regression checks. Build the native app with `./scripts/build.sh`. Later chapters add the remaining features.
 

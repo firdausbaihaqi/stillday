@@ -172,6 +172,11 @@ final class AppState: ObservableObject {
         onChange?()
     }
 
+    func previousWallpaper() {
+        guard let phase = activePhase, let path = Schedule.previousWallpaper(in: phase.wallpapers, current: currentWallpaper) else { return }
+        useWallpaper(path)
+    }
+
     func nextWallpaper() {
         guard let phase = activePhase, let path = Schedule.nextWallpaper(in: phase.wallpapers, current: currentWallpaper) else { return }
         useWallpaper(path)

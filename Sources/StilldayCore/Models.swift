@@ -26,6 +26,10 @@ public enum AudioSource: String, Codable, CaseIterable {
     case local, youtube
 }
 
+public enum AppAppearance: String, Codable, CaseIterable {
+    case system, light, dark
+}
+
 public struct Preferences: Codable, Equatable {
     public var phases: [Phase]
     public var enabled = false
@@ -33,12 +37,28 @@ public struct Preferences: Codable, Equatable {
     public var audioEnabled = false
     public var volume: Double = 0.35
     public var libraryFolder = ""
+    public var appearance: AppAppearance = .system
 
     public init(phases: [Phase] = [
         Phase(name: "Morning", startMinute: 360),
         Phase(name: "Noon", startMinute: 720),
         Phase(name: "Night", startMinute: 1080)
     ]) { self.phases = phases }
+
+    private enum CodingKeys: String, CodingKey {
+        case phases, enabled, wallpaperEnabled, audioEnabled, volume, libraryFolder, appearance
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        phases = try values.decode([Phase].self, forKey: .phases)
+        enabled = try values.decode(Bool.self, forKey: .enabled)
+        wallpaperEnabled = try values.decode(Bool.self, forKey: .wallpaperEnabled)
+        audioEnabled = try values.decode(Bool.self, forKey: .audioEnabled)
+        volume = try values.decode(Double.self, forKey: .volume)
+        libraryFolder = try values.decode(String.self, forKey: .libraryFolder)
+        appearance = try values.decodeIfPresent(AppAppearance.self, forKey: .appearance) ?? .system
+    }
 
     public func validate() throws {
         guard !phases.isEmpty else { throw ValidationError("Keep at least one phase.") }
@@ -68,6 +88,12 @@ public enum Schedule {
         phases.compactMap { phase in
             calendar.nextDate(after: date, matching: DateComponents(hour: phase.startMinute / 60, minute: phase.startMinute % 60, second: 0), matchingPolicy: .nextTime, repeatedTimePolicy: .first, direction: .forward)
         }.min()
+    }
+
+    public static func previousWallpaper(in paths: [String], current: String?) -> String? {
+        guard !paths.isEmpty else { return nil }
+        guard let current, let index = paths.firstIndex(of: current) else { return paths.last }
+        return paths[(index + paths.count - 1) % paths.count]
     }
 
     public static func nextWallpaper(in paths: [String], current: String?) -> String? {

@@ -2,15 +2,6 @@ import AppKit
 import SwiftUI
 import StilldayCore
 
-private enum Palette {
-    static let background = Color(red: 0.96, green: 0.96, blue: 0.94)
-    static let sidebar = Color(red: 0.92, green: 0.93, blue: 0.90)
-    static let ink = Color(red: 0.19, green: 0.23, blue: 0.21)
-    static let muted = Color(red: 0.45, green: 0.49, blue: 0.45)
-    static let accent = Color(red: 0.38, green: 0.47, blue: 0.34)
-    static let line = Color(red: 0.84, green: 0.86, blue: 0.82)
-}
-
 @MainActor
 struct SettingsView: View {
     @ObservedObject var store: AppState
@@ -31,8 +22,8 @@ struct SettingsView: View {
                         Spacer()
                         Button { store.dismissError() } label: { Image(systemName: "xmark") }.buttonStyle(.plain).help("Dismiss error")
                     }
-                    .foregroundStyle(Color(red: 0.58, green: 0.29, blue: 0.18)).padding(14)
-                    .background(Color(red: 0.98, green: 0.92, blue: 0.85))
+                    .foregroundStyle(Palette.errorInk).padding(14)
+                    .background(Palette.errorBackground)
                 }
                 if navigation.page == "library" { libraryPage }
                 else if navigation.page == "general" { generalPage }
@@ -44,7 +35,7 @@ struct SettingsView: View {
         .foregroundStyle(Palette.ink)
         .font(.system(size: 13))
         .tint(Palette.accent)
-        .preferredColorScheme(.light)
+        .preferredColorScheme(store.preferences.appearance.colorScheme)
         .frame(minWidth: 960, minHeight: 700)
         .onAppear { navigation.selection = store.activePhaseID }
         .confirmationDialog("Delete this phase? Its image files will stay in your folder.", isPresented: $showDelete, titleVisibility: .visible) {
@@ -85,7 +76,7 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.horizontal, 12).padding(.vertical, 12)
-                    .background(navigation.page == "phase" && self.phase?.id == phase.id ? Color.white.opacity(0.75) : Color.clear, in: RoundedRectangle(cornerRadius: 11))
+                    .background(navigation.page == "phase" && self.phase?.id == phase.id ? Palette.selection : Color.clear, in: RoundedRectangle(cornerRadius: 11))
                     .contentShape(Rectangle())
                 }.buttonStyle(.plain).padding(.horizontal, -10).padding(.bottom, 4)
             }
@@ -220,6 +211,14 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 28) {
                 pageHeader("MADE TO STAY QUIET", title: "Preferences", subtitle: "A few controls, then back to your day.")
                 VStack(spacing: 0) {
+                    settingRow("Appearance", detail: "Follow macOS, or choose a look for Stillday.") {
+                        Picker("Appearance", selection: Binding(get: { store.preferences.appearance }, set: { value in store.update { $0.appearance = value } })) {
+                            Text("System").tag(AppAppearance.system)
+                            Text("Light").tag(AppAppearance.light)
+                            Text("Dark").tag(AppAppearance.dark)
+                        }.labelsHidden().pickerStyle(.segmented).frame(width: 210)
+                    }
+                    Divider()
                     settingRow("Wallpaper changes", detail: "Follow your phase schedule on connected displays.") {
                         Toggle("Wallpaper changes", isOn: Binding(get: { store.preferences.wallpaperEnabled }, set: { value in store.update { $0.wallpaperEnabled = value } })).labelsHidden().toggleStyle(.switch)
                     }
@@ -258,7 +257,7 @@ struct SettingsView: View {
     private func navButton(_ title: String, symbol: String, target: String) -> some View {
         Button { navigation.page = target } label: {
             Label(title, systemImage: symbol).font(.system(size: 12)).padding(.vertical, 11).padding(.horizontal, 11).frame(maxWidth: .infinity, alignment: .leading)
-                .background(navigation.page == target ? Color.white.opacity(0.75) : .clear, in: RoundedRectangle(cornerRadius: 9))
+                .background(navigation.page == target ? Palette.selection : .clear, in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.plain).padding(.horizontal, -10)
     }
     private func pageHeader(_ caption: String, title: String, subtitle: String) -> some View {
@@ -365,7 +364,11 @@ struct WallpaperImage: View {
                 else { RoundedRectangle(cornerRadius: 8).fill(Palette.line.opacity(0.6)).padding(10).accessibilityLabel("Loading image") }
             }
         }
-        .task(id: path) { loaded = false; image = nil; let result = await ImageCache.shared.image(path: path, pixels: pixels); guard !Task.isCancelled else { return }; image = result; loaded = true }
+        .task(id: path) { loaded = false
+            image = nil
+            let result = await ImageCache.shared.image(path: path, pixels: pixels)
+            guard !Task.isCancelled else { return }
+            image = result; loaded = true }
     }
 }
 
