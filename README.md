@@ -2,10 +2,10 @@
 
 Inspired by [Portal](https://portal.app). An independent native macOS alternative.
 
-## Learning checkpoint 1
+## Learning checkpoint 2
 
-Start with pure scheduling, validation, media metadata, URL validation, and JSON persistence. Keep macOS UI and playback out of the domain layer. The standalone checks work with Command Line Tools.
+Connect the tested core to AppKit: a menu-bar host, wallpaper folder selection, per-phase assignments, editable times, and a dedicated SwiftUI window. The same local files are referenced in place.
 
-Run `swift run StilldayChecks` for the standalone regression checks. Later chapters add the remaining features.
+Run `swift run StilldayChecks` for the standalone regression checks. Build the native app with `./scripts/build.sh`. Later chapters add the remaining features.
 
 This history was reconstructed into logical, buildable learning steps from the original conversation and saved source snapshots; these are not fabricated historical timestamps.
