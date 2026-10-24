@@ -1,0 +1,96 @@
+{
+  "desktopEffectsSuppressed" : true,
+  "libraryCount" : 21,
+  "rows" : [
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 201.54529199999999,
+      "imagesReadyMs" : 3295.7146250000001,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 118.93279200000001,
+      "pass" : "cold",
+      "phase" : "Morning"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 81.725082999999998,
+      "imagesReadyMs" : 377.35674999999998,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 44.020333000000001,
+      "pass" : "cold",
+      "phase" : "Noon"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 81.061333000000005,
+      "imagesReadyMs" : 352.874416,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 80.801708000000005,
+      "pass" : "cold",
+      "phase" : "Night"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 35.487457999999997,
+      "imagesReadyMs" : 88.890874999999994,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 35.435417000000001,
+      "pass" : "cold",
+      "phase" : "Wallpaper library"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 54.289791999999998,
+      "imagesReadyMs" : 107.69179200000001,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 54.211750000000002,
+      "pass" : "cold",
+      "phase" : "Preferences"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 80.539416000000003,
+      "imagesReadyMs" : 133.94470799999999,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 80.306250000000006,
+      "pass" : "warm",
+      "phase" : "Morning"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 80.162666000000002,
+      "imagesReadyMs" : 133.57020800000001,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 43.379083000000001,
+      "pass" : "warm",
+      "phase" : "Noon"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 80.137124999999997,
+      "imagesReadyMs" : 132.047583,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 79.840125,
+      "pass" : "warm",
+      "phase" : "Night"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 32.159166999999997,
+      "imagesReadyMs" : 85.562667000000005,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 32.111209000000002,
+      "pass" : "warm",
+      "phase" : "Wallpaper library"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 53.597791999999998,
+      "imagesReadyMs" : 106.991333,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 53.487833000000002,
+      "pass" : "warm",
+      "phase" : "Preferences"
+    }
+  ]
+}

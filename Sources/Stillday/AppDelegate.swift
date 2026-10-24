@@ -5,9 +5,10 @@ import SwiftUI
 import StilldayCore
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
     private var window: NSWindow?
+    private var popover: NSPopover?
     private var store: AppState!
     private var youtube: YouTubeController?
     private let navigation = SettingsNavigation()
@@ -22,6 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         installAppMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "sun.horizon", accessibilityDescription: "Stillday")
+        item.button?.target = self
+        item.button?.action = #selector(togglePopover)
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
         store.onChange = { [weak self] in self?.refreshMenu() }
         store.onYouTubeRequested = { [weak self] id in
@@ -68,8 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Stillday", action: #selector(showAbout), keyEquivalent: "")
         appMenu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
+        let controls = appMenu.addItem(withTitle: "Quick Controls", action: #selector(togglePopover), keyEquivalent: " ")
+        controls.keyEquivalentModifierMask = [.command, .shift]
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit Stillday", action: #selector(quit), keyEquivalent: "q")
+        for item in appMenu.items where !item.isSeparatorItem { item.target = self }
         appItem.submenu = appMenu; menu.addItem(appItem)
         let edit = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
         let editMenu = NSMenu(title: "Edit")
@@ -83,58 +90,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func refreshMenu() {
         guard let store else { return }
         NSApp.appearance = store.preferences.appearance.nativeAppearance
-        let menu = NSMenu()
-        menu.autoenablesItems = false
-        let header = NSMenuItem(title: "Stillday  ·  \(store.activePhase?.name ?? "No phase")", action: nil, keyEquivalent: "")
-        header.isEnabled = false; menu.addItem(header)
-        if let next = store.nextChange, store.preferences.enabled {
-            let label = NSMenuItem(title: "Next change at \(next.formatted(date: .omitted, time: .shortened))", action: nil, keyEquivalent: "")
-            label.isEnabled = false; menu.addItem(label)
-        }
-        menu.addItem(.separator())
-        add("Enable Stillday", action: #selector(toggleEnabled), state: store.preferences.enabled, to: menu)
-        add("Wallpaper changes", action: #selector(toggleWallpaper), state: store.preferences.wallpaperEnabled, to: menu)
-        let next = add("Next wallpaper", action: #selector(nextWallpaper), to: menu)
-        next.isEnabled = store.preferences.enabled && store.preferences.wallpaperEnabled && !(store.activePhase?.wallpapers.isEmpty ?? true)
-        if let phase = store.activePhase, !phase.wallpapers.isEmpty {
-            let choose = NSMenuItem(title: "Choose wallpaper", action: nil, keyEquivalent: "")
-            let submenu = NSMenu()
-            submenu.autoenablesItems = false
-            for path in phase.wallpapers {
-                let entry = NSMenuItem(title: imageTitle(path), action: #selector(selectWallpaper(_:)), keyEquivalent: "")
-                entry.target = self; entry.representedObject = path
-                entry.state = store.currentWallpaper == path ? .on : .off
-                entry.isEnabled = store.preferences.enabled && store.preferences.wallpaperEnabled
-                submenu.addItem(entry)
-            }
-            choose.submenu = submenu; menu.addItem(choose)
-        }
-        menu.addItem(.separator())
-        add("Ambient sound", action: #selector(toggleAudio), state: store.preferences.audioEnabled, to: menu)
-        if youtube != nil { add("Show YouTube player", action: #selector(showYouTube), to: menu) }
-        if store.preferences.audioEnabled {
-            let label = NSMenuItem(title: store.audioStatus, action: nil, keyEquivalent: "")
-            label.isEnabled = false; menu.addItem(label)
-        }
-        if let error = store.error {
-            menu.addItem(.separator())
-            let label = NSMenuItem(title: String(error.prefix(100)), action: nil, keyEquivalent: "")
-            label.isEnabled = false; menu.addItem(label)
-        }
-        menu.addItem(.separator())
-        add("Settings…", action: #selector(showSettings), to: menu).keyEquivalent = ","
-        add("Quit Stillday", action: #selector(quit), to: menu).keyEquivalent = "q"
-        statusItem?.menu = menu
         statusItem?.button?.appearsDisabled = !store.preferences.enabled
+        statusItem?.button?.toolTip = "Stillday · \(store.activePhase?.name ?? "Your day")"
     }
 
-    @discardableResult
-    private func add(_ title: String, action: Selector, state: Bool? = nil, to menu: NSMenu) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-        item.target = self
-        if let state { item.state = state ? .on : .off }
-        menu.addItem(item)
-        return item
+    @objc private func togglePopover() {
+        if popover?.isShown == true { popover?.performClose(nil); return }
+        DispatchQueue.main.async { [weak self] in self?.showPopover() }
+    }
+
+    private func showPopover() {
+        guard let button = statusItem?.button else { return }
+        let panel = NSPopover()
+        panel.behavior = .transient
+        panel.delegate = self
+        let controller = NSHostingController(rootView: MenuBarView(store: store,
+            openSettings: { [weak self] in self?.popover?.performClose(nil); self?.showSettings() },
+            openYouTube: { [weak self] in self?.youtube?.showExisting() },
+            quit: { NSApp.terminate(nil) }))
+        controller.sizingOptions = [.preferredContentSize]
+        panel.contentViewController = controller
+        panel.contentSize = NSSize(width: 360, height: 562)
+        popover = panel
+        NSApp.activate(ignoringOtherApps: true)
+        panel.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        controller.view.window?.title = "Stillday Controls"
+        controller.view.window?.makeKeyAndOrderFront(nil)
+        if ProcessInfo.processInfo.arguments.contains("--preview-controls") {
+            NSLog("Stillday popover shown=%@ size=%@ anchor=%@", String(panel.isShown), NSStringFromSize(panel.contentSize), NSStringFromRect(button.window?.frame ?? .zero))
+        }
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        popover?.contentViewController = nil
+        popover = nil
+        if window == nil { ImageCache.shared.clear() }
     }
 
     @objc func showSettings() {
@@ -159,15 +149,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let closed = notification.object as? NSWindow, closed === window else { return }
         closed.contentView = nil
         window = nil
-        ImageCache.shared.clear()
+        if popover?.isShown != true { ImageCache.shared.clear() }
     }
 
-    @objc private func toggleEnabled() { store.update { $0.enabled.toggle() } }
-    @objc private func toggleWallpaper() { store.update { $0.wallpaperEnabled.toggle() } }
-    @objc private func toggleAudio() { store.update { $0.audioEnabled.toggle() } }
-    @objc private func showYouTube() { youtube?.showExisting() }
-    @objc private func nextWallpaper() { store.nextWallpaper() }
-    @objc private func selectWallpaper(_ sender: NSMenuItem) { if let path = sender.representedObject as? String { store.useWallpaper(path) } }
     @objc private func showAbout() { NSApp.orderFrontStandardAboutPanel(nil); NSApp.activate(ignoringOtherApps: true) }
     @objc private func quit() { NSApp.terminate(nil) }
 
@@ -203,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 "duplicateTimeRejected": duplicateRejected,
                 "masterPauseStoppedAudio": !self.store.audioPlaying,
                 "audioTestEnabledMaster": fixture == nil || expectedEnabled,
-                "menuInstalled": self.statusItem?.menu != nil,
+                "menuInstalled": self.statusItem?.button?.action != nil,
                 "audioStopped": !self.store.audioPlaying
             ]
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) { print(String(decoding: data, as: UTF8.self)) }
