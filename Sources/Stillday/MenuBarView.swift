@@ -88,7 +88,7 @@ struct MenuBarView: View {
         }
         .frame(width: 360)
         .foregroundStyle(Palette.ink)
-        .background(Palette.background)
+        .background(WallpaperGlass(path: path))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.13)))
         .animation(Motion.page(reducedMotion), value: store.preferences.audioEnabled)
         .animation(Motion.feedback(reducedMotion), value: store.preferences.enabled)

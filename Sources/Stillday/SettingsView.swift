@@ -41,8 +41,9 @@ struct SettingsView: View {
                 .animation(Motion.page(reducedMotion), value: pageID)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Palette.background)
+            .background(Palette.background.opacity(0.18))
         }
+        .background(WallpaperGlass(path: store.currentWallpaper ?? store.activePhase?.wallpapers.first))
         .foregroundStyle(Palette.ink)
         .font(.system(size: 13))
         .tint(Palette.accent)
@@ -111,7 +112,7 @@ struct SettingsView: View {
             .padding(.top, 18).overlay(alignment: .top) { Rectangle().fill(Palette.line).frame(height: 1) }
             .padding(.bottom, 24)
         }
-        .padding(.horizontal, 24).background(Palette.sidebar)
+        .padding(.horizontal, 24).background(Palette.sidebar.opacity(0.55))
     }
 
     private func phasePage(_ phase: Phase) -> some View {
