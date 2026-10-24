@@ -1,8 +1,20 @@
-# Stillday 0.2 verification
+# Stillday verification
 
 Verified on 24 October 2026 with Apple Silicon, macOS 26.5.1, and Swift 6.3.3 Command Line Tools. The deployment target remains macOS 14. Earlier macOS releases and Intel hardware were not exercised.
 
-## Navigation performance
+## 0.3: motion, glass, shortcuts, and learning history
+
+The release build and native smoke test passed, including real minimize/restore actions, local muted audio, master pause, image loading, and duplicate-time validation. A direct ⌘W keypress in the isolated preview produced the native `isMiniaturized == true` callback, and reopening Settings restored the window.
+
+Native inspection covered light/dark glass, changes from cool lighthouse tones to warm field tones, phase/Library/Preferences navigation, local/YouTube form transitions, scene selection, transport controls, disabled states, and the Settings gear. UI preview settings were volatile; personal assignments and playback settings were preserved. Reduce Motion and Reduce Transparency paths were reviewed in source; the global macOS accessibility preferences were not changed during testing.
+
+The full navigation replay loaded every expected image with zero main-thread decodes. Its path-free report is [navigation-motion-glass.json](docs/performance/navigation-motion-glass.json). The first queued main-loop turns ranged from about 23–129 ms in this run. These are input/layout measurements, not the duration of the intentional spring transitions or proof of a particular frame rate.
+
+The first motion probe exposed an invalid benchmark setup: it cleared the cache while animated outgoing views retained cancelled loads. Cold runs now begin on the non-image Preferences page, and only preparation-page teardown disables animation. Production transitions remain enabled. The corrected run passed all destinations.
+
+Every reconstructed code chapter passed its standalone core checks, and every chapter with an app target compiled as a native release executable. The first five chapters have 36 assertions; later chapters have 45. See [the learning guide](docs/LEARNING_PATH.md) for the exact commit sequence. The original published 0.2 tree is preserved exactly at chapter 7. The rewrite uses reconstructed logical checkpoints and current authoring dates.
+
+## 0.2 navigation performance
 
 The ECC benchmark-optimization-loop workflow was used: measure the existing path, isolate a hypothesis, run the replacement twice against the same input, check correctness, and then verify the completed themed app. The search was bounded to two implementation variants; only one was needed for the image-decoding bottleneck.
 
@@ -61,5 +73,5 @@ This workstation lacks XCTest/Swift Testing modules, so the project uses a stand
 - System appearance is inherited through native macOS appearance and SwiftUI. Returning from manual Light/Dark to System was tested against the current system appearance. The global macOS appearance preference was not changed during testing.
 - Overnight transitions, a reboot/login cycle, and every multi-monitor/Space arrangement were not re-tested for this update. Scheduling and desktop integration retain the native path from 0.1.
 - YouTube’s existing visible-player implementation was retained. YouTube playback was not re-tested for this UI update; the earlier 0.1 check verified load, play, mute, and stop. It still requires a visible player and can use substantially more memory than local audio.
-- The app is approximately 1.9 MB on disk. Memory use was not re-benchmarked for 0.2, so earlier 0.1 memory observations are not presented as current measurements.
+- Memory use was not re-benchmarked for this update, so earlier 0.1 memory observations are not presented as current measurements.
 - The app is locally ad hoc signed, not notarized. The repository contains source, its generated icon, and path-free test results, but no wallpapers, tracks, personal settings, credentials, or private machine paths.

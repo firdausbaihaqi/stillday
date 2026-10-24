@@ -4,12 +4,18 @@ A small native macOS app for wallpaper schedules and ambient audio. Create time-
 
 **Inspired by [Portal](https://portal.app).** Stillday is an independent personal alternative focused on local wallpapers and a minimal feature set. It does not include Portal’s code or media.
 
+## Learn the implementation
+
+Follow the [chapter-by-chapter commit guide](docs/LEARNING_PATH.md) to study the scheduling core, native APIs, audio, concurrency, appearance, controls, and motion in buildable steps.
+
 ## Features
 
 - Editable phases, starting with Morning, Noon, and Night. Add, rename, or remove phases and set their start times.
 - Local wallpaper folders, per-phase image assignments, and previous/next controls.
 - A photo-backed menu-bar popover with master pause, wallpaper/audio switches, thumbnails, and a Settings shortcut.
 - System, Light, and Dark appearances, saved across launches.
+- Wallpaper-derived glass surfaces, short page/image transitions, and hover/press/focus feedback.
+- ⌘W minimizes Settings while the menu-bar app keeps running; Settings restores the window.
 - Looping local audio or an optional visible YouTube player per phase.
 - Independent wallpaper and sound switches, volume, and optional launch at login.
 
@@ -52,6 +58,12 @@ Select YouTube as the phase’s audio source, paste an HTTPS video link, and sav
 Stillday uses YouTube’s official embedded player and does not extract or download audio. Video owners, regional/account restrictions, and network failures may prevent embedding. Playlist links are not supported. YouTube can show ads, contacts Google/YouTube, and uses substantially more memory than local audio. The player uses a nonpersistent web session, which is released when stopped; WebKit helpers may persist temporarily.
 
 See [YouTube’s player requirements](https://developers.google.com/youtube/terms/required-minimum-functionality) and [policy guide](https://developers.google.com/youtube/terms/developer-policies-guide) for the visible-player and background-playback constraints.
+
+## Motion and glass
+
+Both the menu-bar panel and Settings use a zoomed, downsampled version of the active wallpaper as a static blurred backdrop. Adaptive veils preserve text contrast in light and dark modes. Scene changes crossfade when the replacement image is ready.
+
+Page transitions, the sidebar indicator, image fades, selection counts, audio forms, symbols, buttons, and fields have short feedback animations. Native controls retain their system interaction behavior. Reduce Motion disables page offsets and hover/press scaling and reduces other feedback; Reduce Transparency uses opaque surfaces. No perpetual animation runs while the app is idle.
 
 ## Performance
 
