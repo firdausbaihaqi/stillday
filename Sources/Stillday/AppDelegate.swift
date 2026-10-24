@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         store.start()
         refreshMenu()
         if benchmark {
+            navigation.page = "general"
             showSettings()
             Task {
                 await NavigationBenchmark.run(store: store, navigation: navigation)

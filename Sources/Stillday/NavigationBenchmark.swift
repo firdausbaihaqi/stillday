@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 
 /// Exercises the actual settings pages without desktop writes or audible playback.
 @MainActor
@@ -26,9 +27,11 @@ enum NavigationBenchmark {
         destinations.append(("Wallpaper library", "library", nil, Array(store.library.prefix(5)).map { ($0, 380) }))
         destinations.append(("Preferences", "general", nil, []))
         for pass in ["cold", "warm"] {
-            if pass == "cold" { ImageCache.shared.clear() }
             for destination in destinations {
-                navigation.page = destination.page == "general" ? "library" : "general"
+                // Remove the preparation page completely before measuring an animated insertion.
+                var preparation = Transaction()
+                preparation.disablesAnimations = true
+                withTransaction(preparation) { navigation.page = destination.page == "general" ? "library" : "general" }
                 try? await Task.sleep(for: .milliseconds(80))
                 worstGap = 0
                 previousTick = clock.now
