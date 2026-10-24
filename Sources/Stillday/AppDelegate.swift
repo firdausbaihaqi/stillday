@@ -84,6 +84,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
             editMenu.addItem(withTitle: title, action: action, keyEquivalent: key)
         }
         edit.submenu = editMenu; menu.addItem(edit)
+        let windowMenu = NSMenu(title: "Window")
+        let windowItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
+        let minimize = windowMenu.addItem(withTitle: "Minimize Window", action: #selector(minimizeCurrentWindow), keyEquivalent: "w")
+        minimize.target = self
+        windowItem.submenu = windowMenu; menu.addItem(windowItem)
+        NSApp.windowsMenu = windowMenu
         NSApp.mainMenu = menu
     }
 
@@ -128,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
     }
 
     @objc func showSettings() {
-        if let window { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
+        if let window { window.deminiaturize(nil); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1120, height: 790), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "Stillday"
         window.titleVisibility = .hidden
@@ -150,6 +156,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         closed.contentView = nil
         window = nil
         if popover?.isShown != true { ImageCache.shared.clear() }
+    }
+
+    @objc private func minimizeCurrentWindow() {
+        if popover?.isShown == true { popover?.performClose(nil); return }
+        (NSApp.keyWindow ?? window)?.performMiniaturize(nil)
+    }
+
+    func windowDidMiniaturize(_ notification: Notification) {
+        if ProcessInfo.processInfo.arguments.contains("--preview-controls"), let window = notification.object as? NSWindow {
+            NSLog("Stillday window minimized=%@", String(window.isMiniaturized))
+        }
     }
 
     @objc private func showAbout() { NSApp.orderFrontStandardAboutPanel(nil); NSApp.activate(ignoringOtherApps: true) }
@@ -175,6 +192,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
             let thumbnailLoaded = if let path = self.store.library.first {
                 await ImageCache.shared.image(path: path, pixels: 380) != nil
             } else { true }
+            self.minimizeCurrentWindow()
+            let minimizeDeadline = ContinuousClock.now.advanced(by: .seconds(2))
+            while self.window?.isMiniaturized != true, ContinuousClock.now < minimizeDeadline { try? await Task.sleep(for: .milliseconds(20)) }
+            let minimized = self.window?.isMiniaturized == true
+            self.showSettings()
+            let restoreDeadline = ContinuousClock.now.advanced(by: .seconds(2))
+            while self.window?.isMiniaturized == true, ContinuousClock.now < restoreDeadline { try? await Task.sleep(for: .milliseconds(20)) }
             let report: [String: Any] = [
                 "libraryCount": self.store.library.count,
                 "phaseCount": self.store.preferences.phases.count,
@@ -188,6 +212,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
                 "masterPauseStoppedAudio": !self.store.audioPlaying,
                 "audioTestEnabledMaster": fixture == nil || expectedEnabled,
                 "menuInstalled": self.statusItem?.button?.action != nil,
+                "minimizeCommandWorks": minimized,
+                "restoresMinimizedWindow": self.window?.isMiniaturized == false,
                 "audioStopped": !self.store.audioPlaying
             ]
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) { print(String(decoding: data, as: UTF8.self)) }
