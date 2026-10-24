@@ -1,0 +1,60 @@
+{
+  "desktopEffectsSuppressed" : true,
+  "libraryCount" : 21,
+  "rows" : [
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 1476.3205,
+      "imagesReadyMs" : 1529.877,
+      "mainThreadDecodes" : 6,
+      "maxMainLoopGapMs" : 1475.9814590000001,
+      "pass" : "cold",
+      "phase" : "Morning"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 341.64320900000001,
+      "imagesReadyMs" : 395.11087500000002,
+      "mainThreadDecodes" : 1,
+      "maxMainLoopGapMs" : 341.43049999999999,
+      "pass" : "cold",
+      "phase" : "Noon"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 313.41204099999999,
+      "imagesReadyMs" : 366.64354100000003,
+      "mainThreadDecodes" : 1,
+      "maxMainLoopGapMs" : 313.19404200000002,
+      "pass" : "cold",
+      "phase" : "Night"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 33.260708000000001,
+      "imagesReadyMs" : 86.680875,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 30.929041999999999,
+      "pass" : "warm",
+      "phase" : "Morning"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 61.734875000000002,
+      "imagesReadyMs" : 115.212,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 61.532958000000001,
+      "pass" : "warm",
+      "phase" : "Noon"
+    },
+    {
+      "expectedImagesReady" : true,
+      "firstMainTurnMs" : 58.428457999999999,
+      "imagesReadyMs" : 111.85625,
+      "mainThreadDecodes" : 0,
+      "maxMainLoopGapMs" : 58.238166,
+      "pass" : "warm",
+      "phase" : "Night"
+    }
+  ]
+}

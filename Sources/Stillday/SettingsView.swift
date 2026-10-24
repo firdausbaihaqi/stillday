@@ -14,11 +14,10 @@ private enum Palette {
 @MainActor
 struct SettingsView: View {
     @ObservedObject var store: AppState
-    @State private var page = "phase"
-    @State private var selection: UUID?
+    @ObservedObject var navigation: SettingsNavigation
     @State private var showDelete = false
 
-    private var phase: Phase? { store.preferences.phases.first { $0.id == selection } ?? store.activePhase ?? store.sortedPhases.first }
+    private var phase: Phase? { store.preferences.phases.first { $0.id == navigation.selection } ?? store.activePhase ?? store.sortedPhases.first }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -35,8 +34,8 @@ struct SettingsView: View {
                     .foregroundStyle(Color(red: 0.58, green: 0.29, blue: 0.18)).padding(14)
                     .background(Color(red: 0.98, green: 0.92, blue: 0.85))
                 }
-                if page == "library" { libraryPage }
-                else if page == "general" { generalPage }
+                if navigation.page == "library" { libraryPage }
+                else if navigation.page == "general" { generalPage }
                 else if let phase { phasePage(phase) }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -47,10 +46,10 @@ struct SettingsView: View {
         .tint(Palette.accent)
         .preferredColorScheme(.light)
         .frame(minWidth: 960, minHeight: 700)
-        .onAppear { selection = store.activePhaseID }
+        .onAppear { navigation.selection = store.activePhaseID }
         .confirmationDialog("Delete this phase? Its image files will stay in your folder.", isPresented: $showDelete, titleVisibility: .visible) {
             Button("Delete phase", role: .destructive) {
-                if let phase { store.deletePhase(phase.id); selection = store.sortedPhases.first?.id }
+                if let phase { store.deletePhase(phase.id); navigation.selection = store.sortedPhases.first?.id }
             }
         }
     }
@@ -66,13 +65,13 @@ struct SettingsView: View {
                 eyebrow("YOUR RHYTHM")
                 Spacer()
                 Button {
-                    if let id = store.addPhase() { selection = id; page = "phase" }
+                    if let id = store.addPhase() { navigation.selection = id; navigation.page = "phase" }
                 } label: { Image(systemName: "plus").font(.system(size: 12, weight: .medium)) }
                 .buttonStyle(.plain).help("Add a phase").accessibilityLabel("Add a phase")
             }.padding(.bottom, 12)
             ForEach(store.sortedPhases) { phase in
                 Button {
-                    selection = phase.id; page = "phase"
+                    navigation.selection = phase.id; navigation.page = "phase"
                 } label: {
                     HStack(spacing: 11) {
                         Image(systemName: symbol(for: phase)).font(.system(size: 18, weight: .light)).frame(width: 22)
@@ -86,7 +85,7 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.horizontal, 12).padding(.vertical, 12)
-                    .background(page == "phase" && self.phase?.id == phase.id ? Color.white.opacity(0.75) : Color.clear, in: RoundedRectangle(cornerRadius: 11))
+                    .background(navigation.page == "phase" && self.phase?.id == phase.id ? Color.white.opacity(0.75) : Color.clear, in: RoundedRectangle(cornerRadius: 11))
                     .contentShape(Rectangle())
                 }.buttonStyle(.plain).padding(.horizontal, -10).padding(.bottom, 4)
             }
@@ -257,9 +256,9 @@ struct SettingsView: View {
         }.padding(.vertical, 22)
     }
     private func navButton(_ title: String, symbol: String, target: String) -> some View {
-        Button { page = target } label: {
+        Button { navigation.page = target } label: {
             Label(title, systemImage: symbol).font(.system(size: 12)).padding(.vertical, 11).padding(.horizontal, 11).frame(maxWidth: .infinity, alignment: .leading)
-                .background(page == target ? Color.white.opacity(0.75) : .clear, in: RoundedRectangle(cornerRadius: 9))
+                .background(navigation.page == target ? Color.white.opacity(0.75) : .clear, in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.plain).padding(.horizontal, -10)
     }
     private func pageHeader(_ caption: String, title: String, subtitle: String) -> some View {
@@ -366,7 +365,7 @@ struct WallpaperImage: View {
                 else { RoundedRectangle(cornerRadius: 8).fill(Palette.line.opacity(0.6)).padding(10).accessibilityLabel("Loading image") }
             }
         }
-        .task(id: path) { loaded = false; image = ImageCache.shared.image(path: path, pixels: pixels); loaded = true }
+        .task(id: path) { loaded = false; image = nil; let result = await ImageCache.shared.image(path: path, pixels: pixels); guard !Task.isCancelled else { return }; image = result; loaded = true }
     }
 }
 

@@ -10,11 +10,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private var store: AppState!
     private var youtube: YouTubeController?
+    private let navigation = SettingsNavigation()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        let diagnostic = ProcessInfo.processInfo.arguments.contains("--smoke-test")
-        store = AppState(diagnosticMode: diagnostic)
+        let benchmark = ProcessInfo.processInfo.arguments.contains("--benchmark-navigation")
+        let interactivePreview = ProcessInfo.processInfo.arguments.contains("--preview-controls")
+        let diagnostic = ProcessInfo.processInfo.arguments.contains("--smoke-test") || benchmark || interactivePreview
+        let settings = ProcessInfo.processInfo.environment["STILLDAY_TEST_SETTINGS"].map { URL(fileURLWithPath: $0) }
+        store = AppState(diagnosticMode: diagnostic, settingsOverride: diagnostic ? settings : nil)
         installAppMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "sun.horizon", accessibilityDescription: "Stillday")
@@ -36,6 +40,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         store.onVolumeChanged = { [weak self] value in self?.youtube?.setVolume(value) }
         store.start()
         refreshMenu()
+        if benchmark {
+            showSettings()
+            Task {
+                await NavigationBenchmark.run(store: store, navigation: navigation)
+                store.shutdown(); window?.close(); NSApp.terminate(nil)
+            }
+            return
+        }
+        if interactivePreview { showSettings(); return }
         if diagnostic { runSmokeTest(); return }
         let hasLaunched = UserDefaults.standard.bool(forKey: "hasLaunched")
         let launchEvent = NSAppleEventManager.shared().currentAppleEvent
@@ -131,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.backgroundColor = NSColor(calibratedRed: 0.96, green: 0.96, blue: 0.94, alpha: 1)
         window.minSize = NSSize(width: 960, height: 700)
-        window.contentView = NSHostingView(rootView: SettingsView(store: store))
+        window.contentView = NSHostingView(rootView: SettingsView(store: store, navigation: navigation))
         window.delegate = self
         window.isReleasedWhenClosed = false
         if !window.setFrameUsingName("StilldaySettings") { window.center() }
@@ -166,18 +179,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 for index in settings.phases.indices { settings.phases[index].audioPath = fixture; settings.phases[index].audioSource = .local }
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
             guard let self else { return }
             let audioWasPlaying = self.store.audioPlaying
             let expectedEnabled = self.store.preferences.enabled
             self.store.update { settings in settings.phases[1].startMinute = settings.phases[0].startMinute }
             let duplicateRejected = self.store.error != nil && Set(self.store.preferences.phases.map(\.startMinute)).count == self.store.preferences.phases.count
             self.store.update { $0.enabled = false }
+            let thumbnailLoaded = if let path = self.store.library.first {
+                await ImageCache.shared.image(path: path, pixels: 380) != nil
+            } else { true }
             let report: [String: Any] = [
                 "libraryCount": self.store.library.count,
                 "phaseCount": self.store.preferences.phases.count,
                 "activePhase": self.store.activePhase?.name ?? "none",
-                "firstThumbnailLoaded": self.store.library.first.flatMap { ImageCache.shared.image(path: $0, pixels: 380) } != nil,
+                "firstThumbnailLoaded": thumbnailLoaded,
                 "settingsWindowVisible": self.window?.isVisible == true,
                 "desktopEffectsSuppressed": self.store.diagnosticMode,
                 "localAudioStarted": fixture == nil || audioWasPlaying,

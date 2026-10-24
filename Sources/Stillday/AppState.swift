@@ -1,7 +1,6 @@
 import AppKit
 import AVFoundation
 import Combine
-import ImageIO
 import ServiceManagement
 import StilldayCore
 import UniformTypeIdentifiers
@@ -33,12 +32,12 @@ final class AppState: ObservableObject {
     let settingsURL: URL
     let diagnosticMode: Bool
 
-    init(diagnosticMode: Bool = false) {
+    init(diagnosticMode: Bool = false, settingsOverride: URL? = nil) {
         self.diagnosticMode = diagnosticMode
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        settingsURL = diagnosticMode
+        settingsURL = settingsOverride ?? (diagnosticMode
             ? FileManager.default.temporaryDirectory.appendingPathComponent("Stillday-smoke-\(ProcessInfo.processInfo.processIdentifier)/settings.json")
-            : support.appendingPathComponent("Stillday/settings.json")
+            : support.appendingPathComponent("Stillday/settings.json"))
         var initial = Preferences()
         var loadError: String?
         var recoveryAllowsSaving = true
@@ -61,6 +60,9 @@ final class AppState: ObservableObject {
         library = Self.imagePaths(in: initial.libraryFolder)
         activePhaseID = Schedule.phase(at: Date(), phases: initial.phases)?.id
         if diagnosticMode { preferences.enabled = false; preferences.audioEnabled = false }
+        else if let phase = activePhase, let screen = NSScreen.main,
+                let displayed = NSWorkspace.shared.desktopImageURL(for: screen)?.path,
+                phase.wallpapers.contains(displayed) { currentWallpaper = displayed }
     }
 
     var activePhase: Phase? { preferences.phases.first { $0.id == activePhaseID } }
@@ -142,10 +144,10 @@ final class AppState: ObservableObject {
         activePhaseID = phase?.id
         if refreshScreens { lastAppliedByScreen.removeAll() }
         if preferences.enabled, let phase {
-            if preferences.wallpaperEnabled && !diagnosticMode {
+            if preferences.wallpaperEnabled {
                 let path = currentWallpaper.flatMap { phase.wallpapers.contains($0) ? $0 : nil } ?? phase.wallpapers.first
                 currentWallpaper = path
-                if let path { applyWallpaper(path) }
+                if let path, !diagnosticMode { applyWallpaper(path) }
             }
             reconcileAudio(phase)
         } else { stopAudio() }
@@ -166,7 +168,7 @@ final class AppState: ObservableObject {
             return
         }
         currentWallpaper = path
-        applyWallpaper(path)
+        if !diagnosticMode { applyWallpaper(path) }
         onChange?()
     }
 
@@ -320,26 +322,4 @@ final class AppState: ObservableObject {
             .filter { types.contains($0.pathExtension.lowercased()) && (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }
             .map(\.path).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
-}
-
-@MainActor
-final class ImageCache {
-    static let shared = ImageCache()
-    private let cache = NSCache<NSString, NSImage>()
-    init() { cache.totalCostLimit = 24 * 1024 * 1024; cache.countLimit = 60 }
-    func image(path: String, pixels: Int) -> NSImage? {
-        let key = "\(path)|\(pixels)" as NSString
-        if let image = cache.object(forKey: key) { return image }
-        guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceShouldCacheImmediately: true,
-                kCGImageSourceThumbnailMaxPixelSize: pixels
-              ] as CFDictionary) else { return nil }
-        let image = NSImage(cgImage: cgImage, size: .zero)
-        cache.setObject(image, forKey: key, cost: cgImage.bytesPerRow * cgImage.height)
-        return image
-    }
-    func clear() { cache.removeAllObjects() }
 }
