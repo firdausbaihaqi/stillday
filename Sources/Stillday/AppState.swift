@@ -17,6 +17,9 @@ final class AppState: ObservableObject {
     @Published private(set) var audioStatus = "Ambient sound is off"
     @Published private(set) var loginEnabled = SMAppService.mainApp.status == .enabled
     var onChange: (() -> Void)?
+    var onYouTubeRequested: ((String) -> Void)?
+    var onYouTubeStopped: (() -> Void)?
+    var onVolumeChanged: ((Double) -> Void)?
     private var timer: Timer?
     private var player: AVQueuePlayer?
     private var looper: AVPlayerLooper?
@@ -190,7 +193,18 @@ final class AppState: ObservableObject {
 
     private func reconcileAudio(_ phase: Phase) {
         guard preferences.audioEnabled else { stopAudio(); return }
-
+        if phase.audioSource == .youtube {
+            guard let id = YouTube.videoID(from: phase.youtubeURL) else {
+                stopAudio(); audioStatus = "Add a valid YouTube video link for \(phase.name)."; return
+            }
+            let source = "youtube:\(id)"
+            guard playingSource != source else { onVolumeChanged?(preferences.volume); return }
+            stopAudio()
+            playingSource = source
+            audioStatus = "YouTube player open · press play in its window"
+            onYouTubeRequested?(id)
+            return
+        }
         guard !phase.audioPath.isEmpty else { stopAudio(); audioStatus = "Choose a local track for \(phase.name)."; return }
         if playingSource == phase.audioPath, let player {
             player.volume = Float(preferences.volume)
@@ -231,6 +245,18 @@ final class AppState: ObservableObject {
         } catch { self.error = "Could not play ambient audio: \(error.localizedDescription)"; audioStatus = "Audio unavailable" }
     }
 
+    func youtubePlaybackChanged(playing: Bool, message: String?) {
+        audioPlaying = playing
+        if let message { audioStatus = message }
+        onChange?()
+    }
+
+    func youtubeWindowClosed() {
+        playingSource = nil
+        audioPlaying = false
+        if preferences.audioEnabled { update { $0.audioEnabled = false } }
+    }
+
     func stopAudio() {
         itemStatusObservation?.invalidate()
         itemStatusObservation = nil
@@ -246,6 +272,7 @@ final class AppState: ObservableObject {
         playingSource = nil
         audioPlaying = false
         audioStatus = "Ambient sound is off"
+        onYouTubeStopped?()
     }
 
     func chooseFolder() {

@@ -2,9 +2,9 @@
 
 Inspired by [Portal](https://portal.app). An independent native macOS alternative.
 
-## Learning checkpoint 3
+## Learning checkpoint 4
 
-Add independent audio controls and per-phase local tracks using AVQueuePlayer and AVPlayerLooper. Keep playback buffered and stop it on master pause or sleep. The UI exposes only the supported local source at this point.
+Add the official YouTube embed on demand, validate video links, and release its WebKit session when stopped. A visible player is required; local audio remains the background option.
 
 Run `swift run StilldayChecks` for the standalone regression checks. Build the native app with `./scripts/build.sh`. Later chapters add the remaining features.
 

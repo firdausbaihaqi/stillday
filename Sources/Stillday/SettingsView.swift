@@ -284,11 +284,13 @@ private struct PhaseEditor: View {
     let phase: Phase
     @State private var name: String
     @State private var time: Date
+    @State private var youtube: String
     init(store: AppState, phase: Phase) {
         self.store = store; self.phase = phase
         _name = State(initialValue: phase.name)
         // A stable reference day keeps clock-time editing independent of today's DST transition.
         _time = State(initialValue: Calendar.current.date(from: DateComponents(year: 2001, month: 1, day: 1, hour: phase.startMinute / 60, minute: phase.startMinute % 60)) ?? Date())
+        _youtube = State(initialValue: phase.youtubeURL)
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -310,7 +312,14 @@ private struct PhaseEditor: View {
             }
             HStack(alignment: .top, spacing: 24) {
                 VStack(alignment: .leading, spacing: 7) {
-
+                    fieldLabel("Ambient source")
+                    Picker("Ambient source", selection: Binding(get: { phase.audioSource }, set: { value in var edited = phase; edited.audioSource = value; store.updatePhase(edited) })) {
+                        Text("Local audio").tag(AudioSource.local)
+                        Text("YouTube").tag(AudioSource.youtube)
+                    }.labelsHidden().pickerStyle(.segmented).frame(width: 200)
+                }
+                VStack(alignment: .leading, spacing: 7) {
+                    if phase.audioSource == .local {
                         fieldLabel("Audio file")
                         HStack {
                             Text(phase.audioPath.isEmpty ? "No track selected" : URL(fileURLWithPath: phase.audioPath).lastPathComponent).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
@@ -318,7 +327,22 @@ private struct PhaseEditor: View {
                             Button("Choose…") { store.chooseAudio(for: phase.id) }
                         }.frame(height: 24)
                         Text("Loops while this phase is active.").font(.system(size: 10)).foregroundStyle(Palette.muted)
-
+                    } else {
+                        fieldLabel("YouTube video link")
+                        HStack {
+                            TextField("https://www.youtube.com/watch?v=…", text: $youtube).textFieldStyle(.roundedBorder).accessibilityLabel("YouTube video link")
+                            Button("Save") {
+                                let value = youtube.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard value.isEmpty || YouTube.videoID(from: value) != nil else { return }
+                                var edited = phase; edited.youtubeURL = value; store.updatePhase(edited)
+                            }.disabled((!youtube.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && YouTube.videoID(from: youtube) == nil) || youtube == phase.youtubeURL)
+                        }
+                        Text(youtube.isEmpty || YouTube.videoID(from: youtube) != nil ? "Plays in a visible player window; uses more memory than local audio." : "Enter an HTTPS YouTube video link, not a playlist.").font(.system(size: 10)).foregroundStyle(Palette.muted)
+                        HStack(spacing: 12) {
+                            Link("YouTube terms", destination: URL(string: "https://www.youtube.com/t/terms")!)
+                            Link("Google privacy", destination: URL(string: "https://policies.google.com/privacy")!)
+                        }.font(.system(size: 9))
+                    }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
         }

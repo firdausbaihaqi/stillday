@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private var window: NSWindow?
     private var store: AppState!
+    private var youtube: YouTubeController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -19,6 +20,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item.button?.image = NSImage(systemSymbolName: "sun.horizon", accessibilityDescription: "Stillday")
         statusItem = item
         store.onChange = { [weak self] in self?.refreshMenu() }
+        store.onYouTubeRequested = { [weak self] id in
+            guard let self else { return }
+            if self.youtube == nil {
+                self.youtube = YouTubeController()
+                self.youtube?.onClose = { [weak self] in
+                    self?.youtube = nil
+                    self?.store.youtubeWindowClosed()
+                }
+                self.youtube?.onStatus = { [weak self] playing, message in self?.store.youtubePlaybackChanged(playing: playing, message: message) }
+            }
+            self.youtube?.show(videoID: id, volume: self.store.preferences.volume)
+        }
+        store.onYouTubeStopped = { [weak self] in self?.youtube?.stop(); self?.youtube = nil }
+        store.onVolumeChanged = { [weak self] value in self?.youtube?.setVolume(value) }
         store.start()
         refreshMenu()
         if diagnostic { runSmokeTest(); return }
@@ -82,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         menu.addItem(.separator())
         add("Ambient sound", action: #selector(toggleAudio), state: store.preferences.audioEnabled, to: menu)
+        if youtube != nil { add("Show YouTube player", action: #selector(showYouTube), to: menu) }
         if store.preferences.audioEnabled {
             let label = NSMenuItem(title: store.audioStatus, action: nil, keyEquivalent: "")
             label.isEnabled = false; menu.addItem(label)
@@ -135,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func toggleEnabled() { store.update { $0.enabled.toggle() } }
     @objc private func toggleWallpaper() { store.update { $0.wallpaperEnabled.toggle() } }
     @objc private func toggleAudio() { store.update { $0.audioEnabled.toggle() } }
+    @objc private func showYouTube() { youtube?.showExisting() }
     @objc private func nextWallpaper() { store.nextWallpaper() }
     @objc private func selectWallpaper(_ sender: NSMenuItem) { if let path = sender.representedObject as? String { store.useWallpaper(path) } }
     @objc private func showAbout() { NSApp.orderFrontStandardAboutPanel(nil); NSApp.activate(ignoringOtherApps: true) }
