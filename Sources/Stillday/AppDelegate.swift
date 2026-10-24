@@ -81,6 +81,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             choose.submenu = submenu; menu.addItem(choose)
         }
         menu.addItem(.separator())
+        add("Ambient sound", action: #selector(toggleAudio), state: store.preferences.audioEnabled, to: menu)
+        if store.preferences.audioEnabled {
+            let label = NSMenuItem(title: store.audioStatus, action: nil, keyEquivalent: "")
+            label.isEnabled = false; menu.addItem(label)
+        }
         if let error = store.error {
             menu.addItem(.separator())
             let label = NSMenuItem(title: String(error.prefix(100)), action: nil, keyEquivalent: "")
@@ -129,6 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func toggleEnabled() { store.update { $0.enabled.toggle() } }
     @objc private func toggleWallpaper() { store.update { $0.wallpaperEnabled.toggle() } }
+    @objc private func toggleAudio() { store.update { $0.audioEnabled.toggle() } }
     @objc private func nextWallpaper() { store.nextWallpaper() }
     @objc private func selectWallpaper(_ sender: NSMenuItem) { if let path = sender.representedObject as? String { store.useWallpaper(path) } }
     @objc private func showAbout() { NSApp.orderFrontStandardAboutPanel(nil); NSApp.activate(ignoringOtherApps: true) }
@@ -136,10 +142,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func runSmokeTest() {
         showSettings()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+        let fixture = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--audio-fixture=") }).map { String($0.dropFirst("--audio-fixture=".count)) }
+        if let fixture {
+            store.update { settings in
+                settings.wallpaperEnabled = false; settings.enabled = true; settings.audioEnabled = true; settings.volume = 0
+                for index in settings.phases.indices { settings.phases[index].audioPath = fixture; settings.phases[index].audioSource = .local }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             guard let self else { return }
-            print("Settings window visible: \(self.window?.isVisible == true)")
-            self.window?.close(); self.store.shutdown(); NSApp.terminate(nil)
+            let audioWasPlaying = self.store.audioPlaying
+            let expectedEnabled = self.store.preferences.enabled
+            self.store.update { settings in settings.phases[1].startMinute = settings.phases[0].startMinute }
+            let duplicateRejected = self.store.error != nil && Set(self.store.preferences.phases.map(\.startMinute)).count == self.store.preferences.phases.count
+            self.store.update { $0.enabled = false }
+            let report: [String: Any] = [
+                "libraryCount": self.store.library.count,
+                "phaseCount": self.store.preferences.phases.count,
+                "activePhase": self.store.activePhase?.name ?? "none",
+                "firstThumbnailLoaded": self.store.library.first.flatMap { ImageCache.shared.image(path: $0, pixels: 380) } != nil,
+                "settingsWindowVisible": self.window?.isVisible == true,
+                "desktopEffectsSuppressed": self.store.diagnosticMode,
+                "localAudioStarted": fixture == nil || audioWasPlaying,
+                "audioFixtureProvided": fixture != nil,
+                "duplicateTimeRejected": duplicateRejected,
+                "masterPauseStoppedAudio": !self.store.audioPlaying,
+                "audioTestEnabledMaster": fixture == nil || expectedEnabled,
+                "menuInstalled": self.statusItem?.menu != nil,
+                "audioStopped": !self.store.audioPlaying
+            ]
+            if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) { print(String(decoding: data, as: UTF8.self)) }
+            self.window?.close()
+            self.store.shutdown()
+            NSApp.terminate(nil)
         }
     }
 }

@@ -2,9 +2,9 @@
 
 Inspired by [Portal](https://portal.app). An independent native macOS alternative.
 
-## Learning checkpoint 2
+## Learning checkpoint 3
 
-Connect the tested core to AppKit: a menu-bar host, wallpaper folder selection, per-phase assignments, editable times, and a dedicated SwiftUI window. The same local files are referenced in place.
+Add independent audio controls and per-phase local tracks using AVQueuePlayer and AVPlayerLooper. Keep playback buffered and stop it on master pause or sleep. The UI exposes only the supported local source at this point.
 
 Run `swift run StilldayChecks` for the standalone regression checks. Build the native app with `./scripts/build.sh`. Later chapters add the remaining features.
 

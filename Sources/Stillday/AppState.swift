@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Combine
 import ImageIO
 import ServiceManagement
@@ -11,10 +12,18 @@ final class AppState: ObservableObject {
     @Published private(set) var library: [String] = []
     @Published private(set) var activePhaseID: UUID?
     @Published private(set) var currentWallpaper: String?
+    @Published private(set) var audioPlaying = false
     @Published private(set) var error: String?
+    @Published private(set) var audioStatus = "Ambient sound is off"
     @Published private(set) var loginEnabled = SMAppService.mainApp.status == .enabled
     var onChange: (() -> Void)?
     private var timer: Timer?
+    private var player: AVQueuePlayer?
+    private var looper: AVPlayerLooper?
+    private var playbackObservation: NSKeyValueObservation?
+    private var itemStatusObservation: NSKeyValueObservation?
+    private var audioFailureObservation: NSObjectProtocol?
+    private var playingSource: String?
     private var observations: [NSObjectProtocol] = []
     private var lastAppliedByScreen: [String: String] = [:]
     private var canSave = true
@@ -62,6 +71,9 @@ final class AppState: ObservableObject {
                 Task { @MainActor in self?.reconcile(refreshScreens: true) }
             })
         }
+        observations.append(workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.stopAudio() }
+        })
         for name in [NSApplication.didChangeScreenParametersNotification, NSNotification.Name.NSSystemTimeZoneDidChange, NSNotification.Name.NSSystemClockDidChange] {
             observations.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.reconcile(refreshScreens: true) }
@@ -132,7 +144,8 @@ final class AppState: ObservableObject {
                 currentWallpaper = path
                 if let path { applyWallpaper(path) }
             }
-        }
+            reconcileAudio(phase)
+        } else { stopAudio() }
         if preferences.enabled, let next = nextChange {
             let scheduled = Timer(fire: next.addingTimeInterval(0.15), interval: 0, repeats: false) { [weak self] _ in
                 Task { @MainActor in self?.reconcile() }
@@ -175,6 +188,66 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func reconcileAudio(_ phase: Phase) {
+        guard preferences.audioEnabled else { stopAudio(); return }
+
+        guard !phase.audioPath.isEmpty else { stopAudio(); audioStatus = "Choose a local track for \(phase.name)."; return }
+        if playingSource == phase.audioPath, let player {
+            player.volume = Float(preferences.volume)
+            return
+        }
+        stopAudio()
+        do {
+            guard FileManager.default.isReadableFile(atPath: phase.audioPath) else { throw ValidationError("The audio file is missing or unreadable.") }
+            let item = AVPlayerItem(url: URL(fileURLWithPath: phase.audioPath))
+            item.preferredForwardBufferDuration = 5
+            let audio = AVQueuePlayer()
+            audio.volume = Float(preferences.volume)
+            player = audio
+            looper = AVPlayerLooper(player: audio, templateItem: item)
+            playingSource = phase.audioPath
+            playbackObservation = audio.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] audio, _ in
+                let playing = audio.timeControlStatus == .playing
+                Task { @MainActor in
+                    guard let self, self.player === audio else { return }
+                    self.audioPlaying = playing; self.onChange?()
+                }
+            }
+            audioFailureObservation = NotificationCenter.default.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: nil, queue: .main) { [weak self] notification in
+                guard let failedItem = notification.object as? AVPlayerItem else { return }
+                let message = failedItem.error?.localizedDescription ?? "The audio file could not be played."
+                Task { @MainActor in self?.error = message; self?.stopAudio(); self?.onChange?() }
+            }
+            itemStatusObservation = audio.currentItem?.observe(\.status, options: [.initial, .new]) { [weak self, weak audio] item, _ in
+                guard item.status == .failed else { return }
+                let message = item.error?.localizedDescription ?? "This audio format could not be played."
+                Task { @MainActor in
+                    guard let self, let audio, self.player === audio else { return }
+                    self.stopAudio(); self.error = message; self.onChange?()
+                }
+            }
+            audio.play()
+            audioStatus = URL(fileURLWithPath: phase.audioPath).deletingPathExtension().lastPathComponent
+        } catch { self.error = "Could not play ambient audio: \(error.localizedDescription)"; audioStatus = "Audio unavailable" }
+    }
+
+    func stopAudio() {
+        itemStatusObservation?.invalidate()
+        itemStatusObservation = nil
+        playbackObservation?.invalidate()
+        playbackObservation = nil
+        if let audioFailureObservation { NotificationCenter.default.removeObserver(audioFailureObservation) }
+        audioFailureObservation = nil
+        player?.pause()
+        looper?.disableLooping()
+        looper = nil
+        player?.removeAllItems()
+        player = nil
+        playingSource = nil
+        audioPlaying = false
+        audioStatus = "Ambient sound is off"
+    }
+
     func chooseFolder() {
         let panel = NSOpenPanel()
         panel.title = "Choose your wallpaper folder"
@@ -191,6 +264,16 @@ final class AppState: ObservableObject {
         onChange?()
     }
 
+    func chooseAudio(for id: UUID) {
+        let panel = NSOpenPanel()
+        panel.title = "Choose a local ambient track"
+        panel.allowedContentTypes = [.audio]
+        guard panel.runModal() == .OK, let url = panel.url,
+              var phase = preferences.phases.first(where: { $0.id == id }) else { return }
+        phase.audioPath = url.path; phase.audioSource = .local
+        updatePhase(phase)
+    }
+
     func setLoginEnabled(_ enabled: Bool) {
         do {
             if enabled { try SMAppService.mainApp.register() }
@@ -201,7 +284,7 @@ final class AppState: ObservableObject {
     }
 
     func dismissError() { error = nil }
-    func shutdown() { timer?.invalidate() }
+    func shutdown() { timer?.invalidate(); stopAudio() }
 
     static func imagePaths(in folder: String) -> [String] {
         guard !folder.isEmpty else { return [] }

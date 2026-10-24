@@ -225,13 +225,21 @@ struct SettingsView: View {
                         Toggle("Wallpaper changes", isOn: Binding(get: { store.preferences.wallpaperEnabled }, set: { value in store.update { $0.wallpaperEnabled = value } })).labelsHidden().toggleStyle(.switch)
                     }
                     Divider()
+                    settingRow("Ambient sound", detail: "Use the audio source assigned to the current phase.") {
+                        Toggle("Ambient sound", isOn: Binding(get: { store.preferences.audioEnabled }, set: { value in store.update { $0.audioEnabled = value } })).labelsHidden().toggleStyle(.switch)
+                    }
+                    Divider()
+                    settingRow("Volume", detail: "\(Int(store.preferences.volume * 100)) percent") {
+                        Slider(value: Binding(get: { store.preferences.volume }, set: { value in store.update { $0.volume = value } }), in: 0...1).frame(width: 170).accessibilityLabel("Ambient volume")
+                    }
+                    Divider()
                     settingRow("Launch at login", detail: "Start in the menu bar when you sign in.") {
                         Toggle("Launch at login", isOn: Binding(get: { store.loginEnabled }, set: { store.setLoginEnabled($0) })).labelsHidden().toggleStyle(.switch)
                     }
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Built to leave room.").font(.system(size: 18, weight: .medium, design: .rounded))
-                    Text("Wallpapers use the macOS desktop engine. Previews are released when you close this window; the schedule wakes at the next phase boundary.").foregroundStyle(Palette.muted).lineSpacing(5)
+                    Text("Wallpapers use the macOS desktop engine. Local sound uses native playback. Previews are released when you close this window; the schedule wakes at the next phase boundary.").foregroundStyle(Palette.muted).lineSpacing(5)
                     Text("Pausing keeps the current wallpaper and stops sound. The schedule follows your Mac’s local clock; each phase ends when the next begins.").font(.system(size: 11)).foregroundStyle(Palette.muted).lineSpacing(4)
                 }.padding(.top, 8)
                 Button("Show settings file in Finder") { NSWorkspace.shared.activateFileViewerSelecting([store.settingsURL]) }.buttonStyle(.link).font(.system(size: 11))
@@ -300,7 +308,19 @@ private struct PhaseEditor: View {
                     store.updatePhase(edited)
                 }.controlSize(.regular).disabled(name == phase.name && minute == phase.startMinute)
             }
+            HStack(alignment: .top, spacing: 24) {
+                VStack(alignment: .leading, spacing: 7) {
 
+                        fieldLabel("Audio file")
+                        HStack {
+                            Text(phase.audioPath.isEmpty ? "No track selected" : URL(fileURLWithPath: phase.audioPath).lastPathComponent).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
+                            Spacer()
+                            Button("Choose…") { store.chooseAudio(for: phase.id) }
+                        }.frame(height: 24)
+                        Text("Loops while this phase is active.").font(.system(size: 10)).foregroundStyle(Palette.muted)
+
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
     private var minute: Int { let parts = Calendar.current.dateComponents([.hour, .minute], from: time); return (parts.hour ?? 0) * 60 + (parts.minute ?? 0) }
