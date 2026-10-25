@@ -136,6 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
     }
 
     @objc func showSettings() {
+        NSApp.setActivationPolicy(.regular)
         if let window { window.deminiaturize(nil); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1120, height: 790), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "Stillday"
@@ -157,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         guard let closed = notification.object as? NSWindow, closed === window else { return }
         closed.contentView = nil
         window = nil
+        NSApp.setActivationPolicy(.accessory)
         if popover?.isShown != true { ImageCache.shared.clear() }
     }
 
