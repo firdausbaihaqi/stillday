@@ -132,7 +132,7 @@ struct SettingsView: View {
                 let preview = (store.activePhaseID == phase.id ? store.currentWallpaper : nil) ?? phase.wallpapers.first
                 ZStack(alignment: .bottomLeading) {
                     if let preview {
-                        WallpaperImage(path: preview, pixels: 1400).frame(height: 254).clipped()
+                        WallpaperImage(path: preview, pixels: 1400, contentMode: .fit)
                         LinearGradient(colors: [.clear, Color(red: 0.07, green: 0.11, blue: 0.10).opacity(0.72)], startPoint: .center, endPoint: .bottom)
                         HStack(alignment: .bottom) {
                             VStack(alignment: .leading, spacing: 6) {
@@ -382,6 +382,7 @@ private struct PhaseEditor: View {
 struct WallpaperImage: View {
     let path: String
     let pixels: Int
+    var contentMode: ContentMode = .fill
     @State private var image: NSImage?
     @State private var loaded = false
     @State private var representedPath: String?
@@ -390,7 +391,18 @@ struct WallpaperImage: View {
         GeometryReader { geometry in
             ZStack {
                 Palette.sidebar
-                if let image { Image(nsImage: image).resizable().scaledToFill().frame(width: geometry.size.width, height: geometry.size.height).clipped().id(representedPath).transition(.opacity) }
+                if let image {
+                    ZStack {
+                        if contentMode == .fit {
+                            Image(nsImage: image).resizable().scaledToFill()
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .blur(radius: 24).overlay(.black.opacity(0.12))
+                        }
+                        Image(nsImage: image).resizable().aspectRatio(contentMode: contentMode)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                    }
+                    .clipped().id(representedPath).transition(.opacity)
+                }
                 else if loaded { Image(systemName: "photo.badge.exclamationmark").foregroundStyle(Palette.muted).accessibilityLabel("Image unavailable") }
                 else { RoundedRectangle(cornerRadius: 8).fill(Palette.line.opacity(0.6)).padding(10).accessibilityLabel("Loading image") }
             }
