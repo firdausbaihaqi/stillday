@@ -2,6 +2,29 @@
 
 Verified on 24 October 2026 with Apple Silicon, macOS 26.5.1, and Swift 6.3.3 Command Line Tools. The deployment target remains macOS 14. Earlier macOS releases and Intel hardware were not exercised.
 
+## 25 October: background YouTube audio and standard Settings window
+
+Follow-up fix for silent long tracks: the three-hour ambient track reproduced a native player stuck at zero playback time with the direct M4A URL. Its audio-only HLS stream started promptly and advanced normally. Resolution now prefers audio-only HLS, and streamed tracks start directly rather than waiting for AVPlayerLooper preparation. End-of-track handling resolves a fresh URL before repeating. Buffering is shown explicitly, item failures are surfaced, and a 30-second startup timeout prevents an indefinite silent wait.
+
+The native checks now require actual playback-time advancement, including while minimized and after closing Settings. The affected long track passed these checks ([report](docs/verification/background-long-track.json)); a short public clip played through its end and successfully repeated ([report](docs/verification/background-repeat.json)). Local looping also passed with the stronger advancement assertions. These are muted native playback checks, not confirmation from a listener. The default macOS output device was available and unmuted.
+
+The release build and **49/49** core regression checks passed. The additional core checks cover all audio-source values and compatibility with saved visible-player selections.
+
+Native smoke runs used isolated settings and muted playback. A generated local WAV and a real public YouTube clip both reached AVFoundation’s playing state, stayed playing while Settings was minimized and after its window closed, and stopped when the app was paused. Settings reported the regular application policy while open and minimized, then accessory policy after closing. Minimize and restore passed. A pending yt-dlp extraction was started and canceled without later resuming audio. No yt-dlp or Deno process remained after the runs.
+
+An unavailable YouTube video produced the expected connection error without reporting playback. Reports: [local audio](docs/verification/background-local.json), [YouTube audio](docs/verification/background-youtube.json), and [unavailable video](docs/verification/background-unavailable.json). Source-specific “started” flags are skipped when that source’s fixture is absent; use the `audioFixtureProvided` and `youtubeFixtureProvided` fields to identify the exercised source.
+
+The standard Settings window and three source choices were inspected in the running app. Dock/⌘Tab eligibility was checked through AppKit’s regular application policy; direct inspection of the Dock through UI automation timed out. These checks do not establish long-running stream reliability or performance improvements. Signed stream URLs can expire; reconnect by toggling sound off and on. Earlier measurements and visible-player limitations below describe the previous version.
+
+Reproduce with `./scripts/build.sh`, `swift run StilldayChecks`, and the native app executable:
+
+```sh
+../Stillday.app/Contents/MacOS/Stillday --smoke-test --audio-fixture=/absolute/path/to/test.wav
+../Stillday.app/Contents/MacOS/Stillday --smoke-test '--youtube-fixture=https://youtu.be/jNQXAC9IVRw'
+```
+
+Background playback uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) only during stream resolution, followed by native AVQueuePlayer playback. [YouTubeKit](https://github.com/alexeichhorn/YouTubeKit) was also researched; its local extraction is an alternative, but the optional remote fallback forwards requests through a third-party server. Stillday uses neither that library nor its remote service. yt-dlp is installed separately with Homebrew and can be updated independently of Stillday. Local audio and the visible embedded player remain available without it.
+
 ## 0.3: motion, glass, shortcuts, and learning history
 
 The release build and native smoke test passed, including real minimize/restore actions, local muted audio, master pause, image loading, and duplicate-time validation. A direct ⌘W keypress in the isolated preview produced the native `isMiniaturized == true` callback, and reopening Settings restored the window.

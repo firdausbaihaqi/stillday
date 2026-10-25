@@ -341,8 +341,9 @@ private struct PhaseEditor: View {
                     fieldLabel("Ambient source")
                     Picker("Ambient source", selection: Binding(get: { phase.audioSource }, set: { value in var edited = phase; edited.audioSource = value; store.updatePhase(edited) })) {
                         Text("Local audio").tag(AudioSource.local)
-                        Text("YouTube").tag(AudioSource.youtube)
-                    }.labelsHidden().pickerStyle(.segmented).frame(width: 200)
+                        Text("YouTube audio").tag(AudioSource.youtubeAudio)
+                        Text("YouTube player").tag(AudioSource.youtube)
+                    }.labelsHidden().pickerStyle(.segmented).frame(width: 310)
                 }
                 VStack(alignment: .leading, spacing: 7) {
                     if phase.audioSource == .local {
@@ -363,7 +364,7 @@ private struct PhaseEditor: View {
                                 var edited = phase; edited.youtubeURL = value; store.updatePhase(edited)
                             }.disabled((!youtube.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && YouTube.videoID(from: youtube) == nil) || youtube == phase.youtubeURL)
                         }
-                        Text(youtube.isEmpty || YouTube.videoID(from: youtube) != nil ? "Plays in a visible player window; uses more memory than local audio." : "Enter an HTTPS YouTube video link, not a playlist.").font(.system(size: 10)).foregroundStyle(Palette.muted)
+                        Text(youtube.isEmpty || YouTube.videoID(from: youtube) != nil ? (phase.audioSource == .youtubeAudio ? "Plays in the background with yt-dlp. Install once: brew install yt-dlp." : "Plays in a visible player window; uses more memory than local audio.") : "Enter an HTTPS YouTube video link, not a playlist.").font(.system(size: 10)).foregroundStyle(Palette.muted)
                         HStack(spacing: 12) {
                             Link("YouTube terms", destination: URL(string: "https://www.youtube.com/t/terms")!)
                             Link("Google privacy", destination: URL(string: "https://policies.google.com/privacy")!)

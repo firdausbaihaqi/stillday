@@ -12,7 +12,7 @@ Inspired by [Portal](https://portal.app), with a focus on a few everyday control
 
 - Changes wallpapers through Morning, Noon, and Night, with names and times you can edit.
 - Lets you pick the next wallpaper, pause the app, or switch sound on and off from the menu bar.
-- Plays looping local audio or an optional YouTube video in a visible player.
+- Plays ambient audio in the background from local files or YouTube, with an optional visible YouTube player.
 - Follows your Mac’s light or dark appearance, or lets you choose either manually.
 - Uses the current wallpaper to tint its glassy interface.
 
@@ -68,9 +68,10 @@ Your original photos stay where they are. Stillday remembers their locations, so
 Sound is optional and has its own switch.
 
 - **Local audio:** choose a phase, select **Local audio**, and use **Choose…** to pick a track. Turn on **Ambient sound** to loop it while that phase is active.
-- **YouTube:** select **YouTube**, paste a video link, and save it. Enable ambient sound, then press Play in the separate player window. Keep that player visible; closing it stops the sound. Some videos do not allow embedding, and playlist links are not supported.
+- **YouTube audio:** install [yt-dlp](https://github.com/yt-dlp/yt-dlp) once with `brew install yt-dlp` (requires [Homebrew](https://brew.sh)). Select **YouTube audio**, save a video link, and enable ambient sound. Audio plays automatically and keeps going with Settings minimized or closed. Stillday uses yt-dlp only to find the audio stream, then plays it through Apple’s native audio framework. It streams without saving a track to disk or keeping a video browser running.
+- **YouTube player:** paste and save a video link, enable ambient sound, then press Play in the separate window. This uses YouTube’s embedded player, which must stay visible; closing it stops the sound. It works without yt-dlp.
 
-Local audio is the lighter option. YouTube needs an internet connection, may show ads, and uses more memory.
+YouTube requires an internet connection. Background audio uses unofficial extraction, so YouTube changes, restricted videos, or some live streams can prevent playback. If a stream expires or stops, switch sound off and on to reconnect. Try `brew upgrade yt-dlp` if extraction fails. Playlist links are not supported. Local audio is the most dependable option.
 
 ## Everyday controls
 
@@ -78,14 +79,14 @@ Click the menu-bar icon for quick controls. The gear opens Settings, and the pow
 
 - **Wallpaper** and **Ambient sound** can be enabled independently.
 - **Pause** stops scheduling and sound, leaving the current wallpaper in place.
-- **⌘W** minimizes Settings while Stillday keeps running. Open Settings again to restore it.
+- Settings appears in the Dock and **⌘Tab** while its window is open. **⌘W** minimizes it while sound keeps playing; open Settings again to restore it. Closing the window returns Stillday to the menu bar and keeps background audio running.
 - **Preferences** contains appearance, volume, and launch-at-login options.
 
 Quitting also leaves the last wallpaper in place; Stillday does not automatically restore your previous wallpaper.
 
 ## For developers and curious readers
 
-Built with Swift and Apple’s native frameworks, without third-party packages.
+Built with Swift and Apple’s native frameworks. Background YouTube audio optionally uses the separately installed yt-dlp command-line tool; the app has no third-party Swift packages.
 
 - [Learn the app through its commits](docs/LEARNING_PATH.md)
 - [Read the test results, performance measurements, and current limitations](Verification.md)

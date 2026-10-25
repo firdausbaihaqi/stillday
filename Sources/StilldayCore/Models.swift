@@ -23,7 +23,7 @@ public struct Phase: Codable, Identifiable, Equatable {
 }
 
 public enum AudioSource: String, Codable, CaseIterable {
-    case local, youtube
+    case local, youtube, youtubeAudio
 }
 
 public enum AppAppearance: String, Codable, CaseIterable {

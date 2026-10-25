@@ -81,6 +81,17 @@ struct StilldayCoreTests {
             expectNil(YouTube.videoID(from: link))
         }
     }
+    func testAudioModesPersistWithoutChangingExistingSources() throws {
+        let encoder = JSONEncoder()
+        for source in AudioSource.allCases {
+            var value = Preferences()
+            value.phases[0].audioSource = source
+            value.phases[0].youtubeURL = "https://youtu.be/jfKfPfyJRdk"
+            let restored = try JSONDecoder().decode(Preferences.self, from: encoder.encode(value))
+            expectEqual(restored, value)
+        }
+        expectEqual(try JSONDecoder().decode(AudioSource.self, from: Data("\"youtube\"".utf8)), .youtube)
+    }
     func testPreferenceRoundTripAndCorruptFilePreservation() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -131,6 +142,7 @@ struct RunChecks {
         try tests.testAppearanceMigrationAndPersistence()
         tests.testInvalidPreferencesAreRejected()
         tests.testYouTubeLinksAreValidatedBeforeEmbedding()
+        try tests.testAudioModesPersistWithoutChangingExistingSources()
         try tests.testPreferenceRoundTripAndCorruptFilePreservation()
         print("\(checks - failures)/\(checks) regression checks passed")
         if failures > 0 { exit(1) }

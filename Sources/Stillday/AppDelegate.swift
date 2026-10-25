@@ -179,20 +179,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
     private func runSmokeTest() {
         showSettings()
         let fixture = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--audio-fixture=") }).map { String($0.dropFirst("--audio-fixture=".count)) }
-        if let fixture {
+        let youtubeFixture = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--youtube-fixture=") }).map { String($0.dropFirst("--youtube-fixture=".count)) }
+        if let youtubeFixture {
+            store.update { settings in
+                settings.wallpaperEnabled = false; settings.enabled = true; settings.audioEnabled = true; settings.volume = 0
+                for index in settings.phases.indices { settings.phases[index].youtubeURL = youtubeFixture; settings.phases[index].audioSource = .youtubeAudio }
+            }
+        } else if let fixture {
             store.update { settings in
                 settings.wallpaperEnabled = false; settings.enabled = true; settings.audioEnabled = true; settings.volume = 0
                 for index in settings.phases.indices { settings.phases[index].audioPath = fixture; settings.phases[index].audioSource = .local }
             }
         }
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(3))
             guard let self else { return }
-            let audioWasPlaying = self.store.audioPlaying
+            let playbackDeadline = ContinuousClock.now.advanced(by: .seconds(youtubeFixture == nil ? 5 : 70))
+            while (!self.store.audioPlaying || self.store.audioPlaybackSeconds < 0.25), self.store.error == nil, ContinuousClock.now < playbackDeadline { try? await Task.sleep(for: .milliseconds(100)) }
+            let audioConnectionFailed = self.store.error != nil
+            let settingsInAppSwitcher = NSApp.activationPolicy() == .regular
+            let audioWasPlaying = self.store.audioPlaying && self.store.audioPlaybackSeconds >= 0.25
+            let checksRepeat = ProcessInfo.processInfo.arguments.contains("--check-stream-repeat")
+            var streamRepeated = !checksRepeat
+            if checksRepeat, audioWasPlaying {
+                let repeatDeadline = ContinuousClock.now.advanced(by: .seconds(45))
+                var previous = self.store.audioPlaybackSeconds
+                var restarted = false
+                while ContinuousClock.now < repeatDeadline, self.store.error == nil {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    let current = self.store.audioPlaybackSeconds
+                    if current < previous - 0.5 { restarted = true }
+                    if restarted, self.store.audioPlaying, current > 0.25 { streamRepeated = true; break }
+                    previous = current
+                }
+            }
             let expectedEnabled = self.store.preferences.enabled
             self.store.update { settings in settings.phases[1].startMinute = settings.phases[0].startMinute }
             let duplicateRejected = self.store.error != nil && Set(self.store.preferences.phases.map(\.startMinute)).count == self.store.preferences.phases.count
-            self.store.update { $0.enabled = false }
             let thumbnailLoaded = if let path = self.store.library.first {
                 await ImageCache.shared.image(path: path, pixels: 380) != nil
             } else { true }
@@ -200,9 +222,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
             let minimizeDeadline = ContinuousClock.now.advanced(by: .seconds(2))
             while self.window?.isMiniaturized != true, ContinuousClock.now < minimizeDeadline { try? await Task.sleep(for: .milliseconds(20)) }
             let minimized = self.window?.isMiniaturized == true
+            let minimizedTime = self.store.audioPlaybackSeconds
+            try? await Task.sleep(for: .milliseconds(350))
+            let backgroundAudioWhileMinimized = self.store.audioPlaying && abs(self.store.audioPlaybackSeconds - minimizedTime) > 0.05
+            let minimizedInAppSwitcher = NSApp.activationPolicy() == .regular
             self.showSettings()
             let restoreDeadline = ContinuousClock.now.advanced(by: .seconds(2))
             while self.window?.isMiniaturized == true, ContinuousClock.now < restoreDeadline { try? await Task.sleep(for: .milliseconds(20)) }
+            self.window?.close()
+            let closedTime = self.store.audioPlaybackSeconds
+            try? await Task.sleep(for: .milliseconds(350))
+            let backgroundAudioWhileClosed = self.store.audioPlaying && abs(self.store.audioPlaybackSeconds - closedTime) > 0.05
+            let menuBarOnlyWhenClosed = NSApp.activationPolicy() == .accessory
+            self.showSettings()
+            self.store.update { $0.enabled = false }
+            // Stop a real pending extraction before it can replace the paused source.
+            self.store.update { settings in
+                for index in settings.phases.indices {
+                    settings.phases[index].audioSource = .youtubeAudio
+                    settings.phases[index].youtubeURL = "https://youtu.be/BaW_jenozKc"
+                }
+                settings.audioEnabled = true; settings.enabled = true
+            }
+            try? await Task.sleep(for: .milliseconds(300))
+            let extractionWasPending = self.store.audioStatus == "Connecting to YouTube audio…"
+            self.store.update { $0.enabled = false }
+            try? await Task.sleep(for: .milliseconds(500))
+            let pendingAudioCancelled = !self.store.audioPlaying && self.store.audioStatus == "Ambient sound is off"
             let report: [String: Any] = [
                 "libraryCount": self.store.library.count,
                 "phaseCount": self.store.preferences.phases.count,
@@ -211,6 +257,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
                 "settingsWindowVisible": self.window?.isVisible == true,
                 "desktopEffectsSuppressed": self.store.diagnosticMode,
                 "localAudioStarted": fixture == nil || audioWasPlaying,
+                "youtubeAudioStarted": youtubeFixture == nil || audioWasPlaying,
+                "youtubeFixtureProvided": youtubeFixture != nil,
+                "repeatCheckProvided": checksRepeat,
+                "streamRepeated": streamRepeated,
+                "backgroundAudioWhileMinimized": (fixture == nil && youtubeFixture == nil) || backgroundAudioWhileMinimized,
+                "backgroundAudioWhileClosed": (fixture == nil && youtubeFixture == nil) || backgroundAudioWhileClosed,
+                "settingsInAppSwitcher": settingsInAppSwitcher,
+                "minimizedInAppSwitcher": minimizedInAppSwitcher,
+                "menuBarOnlyWhenClosed": menuBarOnlyWhenClosed,
+                "pendingExtractionStarted": extractionWasPending,
+                "pendingAudioCancelled": pendingAudioCancelled,
+                "audioConnectionFailed": audioConnectionFailed,
                 "audioFixtureProvided": fixture != nil,
                 "duplicateTimeRejected": duplicateRejected,
                 "masterPauseStoppedAudio": !self.store.audioPlaying,

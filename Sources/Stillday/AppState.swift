@@ -25,6 +25,9 @@ final class AppState: ObservableObject {
     private var playbackObservation: NSKeyValueObservation?
     private var itemStatusObservation: NSKeyValueObservation?
     private var audioFailureObservation: NSObjectProtocol?
+    private var audioEndObservation: NSObjectProtocol?
+    private var playbackTimeout: Task<Void, Never>?
+    private var streamTask: Task<Void, Never>?
     private var playingSource: String?
     private var observations: [NSObjectProtocol] = []
     private var lastAppliedByScreen: [String: String] = [:]
@@ -212,44 +215,104 @@ final class AppState: ObservableObject {
             onYouTubeRequested?(id)
             return
         }
+        if phase.audioSource == .youtubeAudio {
+            guard let id = YouTube.videoID(from: phase.youtubeURL) else {
+                stopAudio(); audioStatus = "Add a valid YouTube video link for \(phase.name)."; return
+            }
+            let source = "youtube-audio:\(id)"
+            guard playingSource != source else { player?.volume = Float(preferences.volume); return }
+            stopAudio()
+            playingSource = source
+            audioStatus = "Connecting to YouTube audio…"
+            streamTask = Task { [weak self] in
+                guard let self else { return }
+                do {
+                    let stream = try await YouTubeAudioResolver().resolve(videoID: id)
+                    try Task.checkCancellation()
+                    guard self.playingSource == source else { return }
+                    self.playAudio(url: stream.url, source: source, title: stream.title, streamed: true)
+                } catch is CancellationError { return }
+                catch {
+                    guard !Task.isCancelled, self.playingSource == source else { return }
+                    self.audioStatus = "YouTube audio unavailable"
+                    self.error = error.localizedDescription
+                    self.onChange?()
+                }
+            }
+            return
+        }
         guard !phase.audioPath.isEmpty else { stopAudio(); audioStatus = "Choose a local track for \(phase.name)."; return }
         if playingSource == phase.audioPath, let player {
             player.volume = Float(preferences.volume)
             return
         }
         stopAudio()
-        do {
-            guard FileManager.default.isReadableFile(atPath: phase.audioPath) else { throw ValidationError("The audio file is missing or unreadable.") }
-            let item = AVPlayerItem(url: URL(fileURLWithPath: phase.audioPath))
-            item.preferredForwardBufferDuration = 5
-            let audio = AVQueuePlayer()
-            audio.volume = Float(preferences.volume)
-            player = audio
-            looper = AVPlayerLooper(player: audio, templateItem: item)
-            playingSource = phase.audioPath
-            playbackObservation = audio.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] audio, _ in
-                let playing = audio.timeControlStatus == .playing
-                Task { @MainActor in
-                    guard let self, self.player === audio else { return }
-                    self.audioPlaying = playing; self.onChange?()
-                }
-            }
-            audioFailureObservation = NotificationCenter.default.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: nil, queue: .main) { [weak self] notification in
-                guard let failedItem = notification.object as? AVPlayerItem else { return }
-                let message = failedItem.error?.localizedDescription ?? "The audio file could not be played."
-                Task { @MainActor in self?.error = message; self?.stopAudio(); self?.onChange?() }
-            }
-            itemStatusObservation = audio.currentItem?.observe(\.status, options: [.initial, .new]) { [weak self, weak audio] item, _ in
-                guard item.status == .failed else { return }
-                let message = item.error?.localizedDescription ?? "This audio format could not be played."
+        guard FileManager.default.isReadableFile(atPath: phase.audioPath) else {
+            error = "The audio file is missing or unreadable."; audioStatus = "Audio unavailable"; return
+        }
+        playAudio(url: URL(fileURLWithPath: phase.audioPath), source: phase.audioPath, title: URL(fileURLWithPath: phase.audioPath).deletingPathExtension().lastPathComponent)
+    }
+
+    var audioPlaybackSeconds: Double {
+        let seconds = player?.currentTime().seconds ?? 0
+        return seconds.isFinite ? seconds : 0
+    }
+
+    private func playAudio(url: URL, source: String, title: String, streamed: Bool = false) {
+        let item = AVPlayerItem(url: url)
+        item.preferredForwardBufferDuration = 5
+        let audio = AVQueuePlayer()
+        audio.volume = Float(preferences.volume)
+        player = audio
+        if streamed {
+            // Start the stream directly; a looper can wait indefinitely while preparing remote media.
+            audio.actionAtItemEnd = .pause
+            audio.insert(item, after: nil)
+            audioEndObservation = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self, weak audio] _ in
                 Task { @MainActor in
                     guard let self, let audio, self.player === audio else { return }
-                    self.stopAudio(); self.error = message; self.onChange?()
+                    // Resolve again so repeats use fresh signed URLs.
+                    self.stopAudio(); self.reconcile()
                 }
             }
-            audio.play()
-            audioStatus = URL(fileURLWithPath: phase.audioPath).deletingPathExtension().lastPathComponent
-        } catch { self.error = "Could not play ambient audio: \(error.localizedDescription)"; audioStatus = "Audio unavailable" }
+        } else { looper = AVPlayerLooper(player: audio, templateItem: item) }
+        playingSource = source
+        audioStatus = "Buffering audio…"
+        playbackObservation = audio.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] audio, _ in
+            Task { @MainActor in
+                guard let self, self.player === audio else { return }
+                self.audioPlaying = audio.timeControlStatus == .playing && audio.currentItem?.status == .readyToPlay
+                self.audioStatus = self.audioPlaying ? title : "Buffering audio…"
+                if self.audioPlaying { self.playbackTimeout?.cancel(); self.playbackTimeout = nil }
+                self.onChange?()
+            }
+        }
+        audioFailureObservation = NotificationCenter.default.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: nil, queue: .main) { [weak self, weak audio] notification in
+            guard let failedItem = notification.object as? AVPlayerItem else { return }
+            let message = failedItem.error?.localizedDescription ?? "The audio file could not be played."
+            Task { @MainActor in
+                guard let self, let audio, self.player === audio, audio.items().contains(where: { $0 === failedItem }) else { return }
+                self.stopAudio(); self.audioStatus = "Audio unavailable"; self.error = message; self.onChange?()
+            }
+        }
+        itemStatusObservation = audio.currentItem?.observe(\.status, options: [.initial, .new]) { [weak self, weak audio] item, _ in
+            guard item.status == .failed else { return }
+            let message = item.error?.localizedDescription ?? "This audio format could not be played."
+            Task { @MainActor in
+                guard let self, let audio, self.player === audio else { return }
+                self.stopAudio(); self.audioStatus = "Audio unavailable"; self.error = message; self.onChange?()
+            }
+        }
+        audio.play()
+        playbackTimeout = Task { [weak self, weak audio] in
+            do { try await Task.sleep(for: .seconds(30)) } catch { return }
+            guard let self, let audio, self.player === audio, !self.audioPlaying else { return }
+            self.stopAudio()
+            self.audioStatus = "Audio unavailable"
+            self.error = "The audio stream did not start. Switch sound off and on to reconnect, or try another source."
+            self.onChange?()
+        }
+        onChange?()
     }
 
     func youtubePlaybackChanged(playing: Bool, message: String?) {
@@ -265,6 +328,10 @@ final class AppState: ObservableObject {
     }
 
     func stopAudio() {
+        streamTask?.cancel(); streamTask = nil
+        playbackTimeout?.cancel(); playbackTimeout = nil
+        if let audioEndObservation { NotificationCenter.default.removeObserver(audioEndObservation) }
+        audioEndObservation = nil
         itemStatusObservation?.invalidate()
         itemStatusObservation = nil
         playbackObservation?.invalidate()
