@@ -14,6 +14,7 @@ final class AppState: ObservableObject {
     @Published private(set) var audioPlaying = false
     @Published private(set) var error: String?
     @Published private(set) var audioStatus = "Ambient sound is off"
+    @Published private(set) var audioOverride: AudioOverride?
     @Published private(set) var loginEnabled = SMAppService.mainApp.status == .enabled
     var onChange: (() -> Void)?
     var onYouTubeRequested: ((String) -> Void)?
@@ -69,6 +70,8 @@ final class AppState: ObservableObject {
     }
 
     var activePhase: Phase? { preferences.phases.first { $0.id == activePhaseID } }
+    var effectiveAudioSource: AudioSource? { audioOverride == nil ? activePhase?.audioSource : .local }
+    var effectiveAudioPath: String? { audioOverride?.path ?? (activePhase?.audioSource == .local ? activePhase?.audioPath : nil) }
     var sortedPhases: [Phase] { preferences.phases.sorted { $0.startMinute < $1.startMinute } }
     var nextChange: Date? { Schedule.nextBoundary(after: Date(), phases: preferences.phases) }
 
@@ -139,10 +142,14 @@ final class AppState: ObservableObject {
         }
     }
 
-    func reconcile(refreshScreens: Bool = false) {
+    func reconcile(refreshScreens: Bool = false, at date: Date = Date()) {
         timer?.invalidate()
         timer = nil
-        let phase = Schedule.phase(at: Date(), phases: preferences.phases)
+        let phase = Schedule.phase(at: date, phases: preferences.phases)
+        if let override = audioOverride,
+           !override.applies(to: phase?.id, at: date) || !preferences.audioLibraryPaths.contains(override.path) {
+            audioOverride = nil
+        }
         if activePhaseID != phase?.id { currentWallpaper = nil }
         activePhaseID = phase?.id
         if refreshScreens { lastAppliedByScreen.removeAll() }
@@ -152,9 +159,12 @@ final class AppState: ObservableObject {
                 currentWallpaper = path
                 if let path, !diagnosticMode { applyWallpaper(path) }
             }
-            reconcileAudio(phase)
+            var audioPhase = phase
+            if let override = audioOverride { audioPhase.audioSource = .local; audioPhase.audioPath = override.path }
+            reconcileAudio(audioPhase)
         } else { stopAudio() }
-        if preferences.enabled, let next = nextChange {
+        let phaseBoundary = preferences.enabled ? Schedule.nextBoundary(after: date, phases: preferences.phases) : nil
+        if let next = [phaseBoundary, audioOverride?.expiresAt].compactMap({ $0 }).min() {
             let scheduled = Timer(fire: next.addingTimeInterval(0.15), interval: 0, repeats: false) { [weak self] _ in
                 Task { @MainActor in self?.reconcile() }
             }
@@ -372,7 +382,59 @@ final class AppState: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url,
               var phase = preferences.phases.first(where: { $0.id == id }) else { return }
         phase.audioPath = url.path; phase.audioSource = .local
-        updatePhase(phase)
+        update { settings in
+            guard let index = settings.phases.firstIndex(where: { $0.id == id }) else { return }
+            settings.phases[index] = phase
+            settings.audioLibraryPaths = LocalAudioLibrary.paths(settings.audioLibraryPaths + [url.path])
+        }
+    }
+
+    func importAudio() {
+        let panel = NSOpenPanel()
+        panel.title = "Add tracks to your audio library"
+        panel.allowedContentTypes = [.audio]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK else { return }
+        addAudio(panel.urls.map(\.path))
+    }
+
+    func addAudio(_ paths: [String]) {
+        let paths = LocalAudioLibrary.paths(paths)
+        guard !paths.isEmpty else { return }
+        guard paths.allSatisfy({ path in
+            let url = URL(fileURLWithPath: path)
+            return FileManager.default.isReadableFile(atPath: path)
+                && (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType?.conforms(to: .audio)) == true
+        }) else { error = "Choose readable audio files to add to the library."; return }
+        update { $0.audioLibraryPaths = LocalAudioLibrary.paths($0.audioLibraryPaths + paths) }
+    }
+
+    func removeAudio(_ path: String) {
+        update { $0.audioLibraryPaths.removeAll { $0 == path } }
+    }
+
+    func selectAudio(_ path: String) {
+        guard preferences.enabled, preferences.audioEnabled else {
+            error = "Enable Stillday and ambient sound to choose a track."
+            return
+        }
+        guard preferences.audioLibraryPaths.contains(path), FileManager.default.isReadableFile(atPath: path) else {
+            error = "This track is missing or is no longer in your audio library. Add it again or choose another track."
+            return
+        }
+        let now = Date()
+        guard let phase = Schedule.phase(at: now, phases: preferences.phases),
+              let expiry = Schedule.nextBoundary(after: now, phases: preferences.phases) else { return }
+        error = nil
+        audioOverride = AudioOverride(path: path, phaseID: phase.id, expiresAt: expiry)
+        reconcile()
+    }
+
+    func followAudioSchedule() {
+        audioOverride = nil
+        error = nil
+        reconcile()
     }
 
     func setLoginEnabled(_ enabled: Bool) {

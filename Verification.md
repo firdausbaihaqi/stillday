@@ -2,6 +2,12 @@
 
 Verified on 24 October 2026 with Apple Silicon, macOS 26.5.1, and Swift 6.3.3 Command Line Tools. The deployment target remains macOS 14. Earlier macOS releases and Intel hardware were not exercised.
 
+## 27 October: audio library and temporary playback model
+
+Local audio paths now persist independently of phase assignments. Older settings seed them from phase tracks; explicit empty libraries stay empty. Temporary playback overrides are runtime-only, survive pause/resume, and expire at the next boundary or manual reset. Removing a library reference preserves its file and phase assignments. Playback uses the existing native player and cancels pending YouTube resolution when switching sources.
+
+The new core tests first failed on missing APIs, then passed 68/68 assertions. The isolated native fixture verified actual playback advancement, unchanged saved defaults, pause/resume, manual reset, expiry, file-preserving removal, missing-track rejection, pending-extraction replacement, and restoration of the scheduled YouTube source. See [native report](docs/verification/audio-library-native.json). Its diagnostic menu-bar geometry is not production visual evidence. The user-facing Controls and library pages are the next feature phase.
+
 ## 27 October: menu-bar permission recovery
 
 The menu-bar investigation found a reproducible permission coupling in the unchanged installed app: enabling **ChatGPT → Allow in the Menu Bar** produced an immediate ControlCenter `Unblocking host` event for Stillday, and the user confirmed the sunrise icon appeared. Restoring ChatGPT’s disabled setting produced `Moving host to blocked list` for the same Stillday process. The user then approved keeping ChatGPT enabled. Claude’s setting was left unchanged. This is a supported-UI workaround; the underlying cross-app permission association remains. No protected permission records, production bundle ID, or signing requirements were changed. The [CodexBar report](https://github.com/steipete/CodexBar/issues/1440) supplied the cross-app association hypothesis; the toggled Stillday result was verified locally rather than inferred from that report.

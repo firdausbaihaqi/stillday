@@ -92,6 +92,64 @@ struct StilldayCoreTests {
         }
         expectEqual(try JSONDecoder().decode(AudioSource.self, from: Data("\"youtube\"".utf8)), .youtube)
     }
+    func testAudioLibraryMigrationPreservesPhaseAssignments() throws {
+        var old = Preferences()
+        old.phases[0].audioPath = "/Ambient/Ocean.wav"
+        old.phases[1].audioPath = "/Ambient/./Ocean.wav"
+        old.phases[2].audioPath = "/Ambient/Forest.m4a"
+        old.phases[2].audioSource = .youtubeAudio
+        old.phases[2].youtubeURL = "https://youtu.be/jfKfPfyJRdk"
+        let encoder = JSONEncoder()
+        guard var legacy = try JSONSerialization.jsonObject(with: encoder.encode(old)) as? [String: Any] else {
+            throw ValidationError("Preferences must encode as an object.")
+        }
+        legacy.removeValue(forKey: "audioLibraryPaths")
+        let migrated = try JSONDecoder().decode(Preferences.self, from: JSONSerialization.data(withJSONObject: legacy))
+        expectEqual(migrated.audioLibraryPaths, ["/Ambient/Ocean.wav", "/Ambient/Forest.m4a"])
+        expectEqual(migrated.phases, old.phases)
+        expectEqual(migrated.enabled, old.enabled)
+        expectEqual(migrated.audioEnabled, old.audioEnabled)
+        expectEqual(migrated.volume, old.volume)
+    }
+    func testAudioLibraryNormalizesAndDeduplicatesPathsInOrder() {
+        expectEqual(LocalAudioLibrary.paths(["", "relative.wav", "/Ambient/./Ocean.wav", "/Ambient/Ocean.wav", "/Ambient/Rest/../Forest.m4a", "/Ambient/Forest.m4a"]), ["/Ambient/Ocean.wav", "/Ambient/Forest.m4a"])
+        expectEqual(LocalAudioLibrary.paths([]), [])
+    }
+    func testAudioLibraryRoundTripAndRemovalKeepPhaseDefaults() throws {
+        var value = Preferences()
+        value.phases[0].audioPath = "/Ambient/Ocean.wav"
+        value.audioLibraryPaths = ["/Ambient/Ocean.wav", "/Ambient/Forest.m4a"]
+        let encoder = JSONEncoder()
+        let restored = try JSONDecoder().decode(Preferences.self, from: encoder.encode(value))
+        expectEqual(restored, value)
+        let phasesBeforeRemoval = value.phases
+        value.audioLibraryPaths.removeAll()
+        let emptied = try JSONDecoder().decode(Preferences.self, from: encoder.encode(value))
+        expectEqual(emptied.audioLibraryPaths, [])
+        expectEqual(emptied.phases, phasesBeforeRemoval)
+    }
+    func testAudioOverrideEndsAtBoundaryAndOnPhaseMismatch() {
+        let current = phases[0]
+        let override = AudioOverride(path: "/Ambient/Forest.m4a", phaseID: current.id, expiresAt: date(12))
+        expectEqual(override.applies(to: current.id, at: date(11, 59)), true)
+        expectEqual(override.applies(to: current.id, at: date(12)), false)
+        expectEqual(override.applies(to: phases[1].id, at: date(11, 59)), false)
+        expectEqual(override.applies(to: nil, at: date(11, 59)), false)
+    }
+    func testSinglePhaseAudioOverrideExpiresNextDayAndAfterMissedBoundary() throws {
+        let only = Phase(name: "All day", startMinute: 360)
+        guard let boundary = Schedule.nextBoundary(after: date(10), phases: [only], calendar: calendar),
+              let nextDay = calendar.date(byAdding: .day, value: 1, to: date(6)),
+              let missedDay = calendar.date(byAdding: .day, value: 2, to: date(10)) else {
+            throw ValidationError("Expected the next daily boundary.")
+        }
+        let override = AudioOverride(path: "/Ambient/Forest.m4a", phaseID: only.id, expiresAt: boundary)
+        expectEqual(boundary, nextDay)
+        expectEqual(override.applies(to: only.id, at: date(23, 59)), true)
+        expectEqual(override.applies(to: only.id, at: nextDay), false)
+        expectEqual(Schedule.phase(at: missedDay, phases: [only], calendar: calendar)?.id, only.id)
+        expectEqual(override.applies(to: only.id, at: missedDay), false)
+    }
     func testPreferenceRoundTripAndCorruptFilePreservation() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -143,6 +201,11 @@ struct RunChecks {
         tests.testInvalidPreferencesAreRejected()
         tests.testYouTubeLinksAreValidatedBeforeEmbedding()
         try tests.testAudioModesPersistWithoutChangingExistingSources()
+        try tests.testAudioLibraryMigrationPreservesPhaseAssignments()
+        tests.testAudioLibraryNormalizesAndDeduplicatesPathsInOrder()
+        try tests.testAudioLibraryRoundTripAndRemovalKeepPhaseDefaults()
+        tests.testAudioOverrideEndsAtBoundaryAndOnPhaseMismatch()
+        try tests.testSinglePhaseAudioOverrideExpiresNextDayAndAfterMissedBoundary()
         try tests.testPreferenceRoundTripAndCorruptFilePreservation()
         print("\(checks - failures)/\(checks) regression checks passed")
         if failures > 0 { exit(1) }

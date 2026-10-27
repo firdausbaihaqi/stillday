@@ -208,6 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
             let audioConnectionFailed = self.store.error != nil
             let settingsInAppSwitcher = NSApp.activationPolicy() == .regular
             let audioWasPlaying = self.store.audioPlaying && self.store.audioPlaybackSeconds >= 0.25
+            let audioLibraryChecks = if let fixture { await AudioLibraryChecks.run(store: self.store, fixture: fixture) } else { [String: Bool]() }
             let checksRepeat = ProcessInfo.processInfo.arguments.contains("--check-stream-repeat")
             var streamRepeated = !checksRepeat
             if checksRepeat, audioWasPlaying {
@@ -275,7 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
             while self.popover?.isShown != true, ContinuousClock.now < panelDeadline { try? await Task.sleep(for: .milliseconds(20)) }
             let quickControlsOpened = self.popover?.isShown == true
             self.popover?.performClose(nil)
-            let report: [String: Any] = [
+            var report: [String: Any] = [
                 "libraryCount": self.store.library.count,
                 "phaseCount": self.store.preferences.phases.count,
                 "activePhase": self.store.activePhase?.name ?? "none",
@@ -309,6 +310,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
                 "restoresMinimizedWindow": self.window?.isMiniaturized == false,
                 "audioStopped": !self.store.audioPlaying
             ]
+            report.merge(audioLibraryChecks) { _, result in result }
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) { print(String(decoding: data, as: UTF8.self)) }
             self.window?.close()
             self.store.shutdown()

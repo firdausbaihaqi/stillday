@@ -26,6 +26,33 @@ public enum AudioSource: String, Codable, CaseIterable {
     case local, youtube, youtubeAudio
 }
 
+public enum LocalAudioLibrary {
+    public static func paths(_ paths: [String]) -> [String] {
+        var seen = Set<String>()
+        return paths.compactMap { path in
+            guard path.hasPrefix("/") else { return nil }
+            let normalized = URL(fileURLWithPath: path).standardizedFileURL.path
+            return seen.insert(normalized).inserted ? normalized : nil
+        }
+    }
+}
+
+public struct AudioOverride: Equatable {
+    public let path: String
+    public let phaseID: UUID
+    public let expiresAt: Date
+
+    public init(path: String, phaseID: UUID, expiresAt: Date) {
+        self.path = path
+        self.phaseID = phaseID
+        self.expiresAt = expiresAt
+    }
+
+    public func applies(to phaseID: UUID?, at date: Date) -> Bool {
+        self.phaseID == phaseID && date < expiresAt
+    }
+}
+
 public enum AppAppearance: String, Codable, CaseIterable {
     case system, light, dark
 }
@@ -37,6 +64,7 @@ public struct Preferences: Codable, Equatable {
     public var audioEnabled = false
     public var volume: Double = 0.35
     public var libraryFolder = ""
+    public var audioLibraryPaths: [String] = []
     public var appearance: AppAppearance = .system
 
     public init(phases: [Phase] = [
@@ -46,7 +74,7 @@ public struct Preferences: Codable, Equatable {
     ]) { self.phases = phases }
 
     private enum CodingKeys: String, CodingKey {
-        case phases, enabled, wallpaperEnabled, audioEnabled, volume, libraryFolder, appearance
+        case phases, enabled, wallpaperEnabled, audioEnabled, volume, libraryFolder, audioLibraryPaths, appearance
     }
 
     public init(from decoder: Decoder) throws {
@@ -57,6 +85,7 @@ public struct Preferences: Codable, Equatable {
         audioEnabled = try values.decode(Bool.self, forKey: .audioEnabled)
         volume = try values.decode(Double.self, forKey: .volume)
         libraryFolder = try values.decode(String.self, forKey: .libraryFolder)
+        audioLibraryPaths = LocalAudioLibrary.paths(try values.decodeIfPresent([String].self, forKey: .audioLibraryPaths) ?? phases.map(\.audioPath))
         appearance = try values.decodeIfPresent(AppAppearance.self, forKey: .appearance) ?? .system
     }
 
