@@ -22,7 +22,10 @@ fi
 "$project_dir/scripts/build.sh"
 ditto "$source_bundle" "$installed_bundle"
 registration_tool="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
-"$registration_tool" -u "$source_bundle"
+# Unregistering a build that has never been registered can fail.
+if ! "$registration_tool" -u "$source_bundle"; then
+    echo "Could not unregister the build copy; continuing with installed app registration."
+fi
 "$registration_tool" -f "$installed_bundle"
 open "$installed_bundle"
 echo "Installed: $installed_bundle"

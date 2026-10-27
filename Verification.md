@@ -2,6 +2,10 @@
 
 Verified on 24 October 2026 with Apple Silicon, macOS 26.5.1, and Swift 6.3.3 Command Line Tools. The deployment target remains macOS 14. Earlier macOS releases and Intel hardware were not exercised.
 
+## 27 October: installer registration guard
+
+The volume update exposed Launch Services error `-10814` when unregistering the already-unregistered build output. Installation now treats that cleanup as best effort and still requires registration of the installed app to succeed. The failure/continue path was exercised against the build copy, destination registration and strict signature verification passed, and `zsh -n scripts/install.sh` passed. Personal settings remained byte-identical across the 0.4.1 installation.
+
 ## 27 October: shared volume control
 
 Version 0.4.1 adds a 0–100% volume slider to the shared audio controls, with a percentage label and accessible value. The main window, menu-bar panel, and Preferences use the same saved volume. It can be adjusted while sound is off and applies to active native playback and temporary selections through the existing reconciliation path.
