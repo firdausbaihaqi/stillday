@@ -3,6 +3,6 @@ import Combine
 
 @MainActor
 final class SettingsNavigation: ObservableObject {
-    @Published var page = "phase"
+    @Published var page = "controls"
     @Published var selection: UUID?
 }

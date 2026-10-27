@@ -82,8 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Stillday", action: #selector(showAbout), keyEquivalent: "")
-        appMenu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
-        let controls = appMenu.addItem(withTitle: "Quick Controls", action: #selector(togglePopover), keyEquivalent: " ")
+        appMenu.addItem(withTitle: "Settings…", action: #selector(showPreferences), keyEquivalent: ",")
+        let controls = appMenu.addItem(withTitle: "Quick Controls", action: #selector(showControls), keyEquivalent: " ")
         controls.keyEquivalentModifierMask = [.command, .shift]
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit Stillday", action: #selector(quit), keyEquivalent: "q")
@@ -123,12 +123,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         panel.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         panel.delegate = self
         let controller = NSHostingController(rootView: MenuBarView(store: store,
-            openSettings: { [weak self] in self?.popover?.performClose(nil); self?.showSettings() },
+            openSettings: { [weak self] in self?.popover?.performClose(nil); self?.showPreferences() },
             openYouTube: { [weak self] in self?.youtube?.showExisting() },
             quit: { NSApp.terminate(nil) }))
         controller.sizingOptions = [.preferredContentSize]
         panel.contentViewController = controller
-        panel.contentSize = NSSize(width: 360, height: 562)
+        panel.contentSize = NSSize(width: 360, height: 700)
         popover = panel
         NSApp.activate(ignoringOtherApps: true)
         panel.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -154,7 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         window.titlebarAppearsTransparent = true
         window.backgroundColor = .windowBackgroundColor
         window.minSize = NSSize(width: 960, height: 700)
-        window.contentView = NSHostingView(rootView: SettingsView(store: store, navigation: navigation))
+        window.contentView = NSHostingView(rootView: SettingsView(store: store, navigation: navigation, openYouTube: { [weak self] in self?.youtube?.showExisting() }))
         window.delegate = self
         window.isReleasedWhenClosed = false
         if !window.setFrameUsingName("StilldaySettings") { window.center() }
@@ -163,6 +163,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    @objc private func showControls() { navigation.page = "controls"; showSettings() }
+    @objc private func showPreferences() { navigation.page = "general"; showSettings() }
 
     func windowWillClose(_ notification: Notification) {
         guard let closed = notification.object as? NSWindow, closed === window else { return }

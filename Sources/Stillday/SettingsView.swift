@@ -6,6 +6,7 @@ import StilldayCore
 struct SettingsView: View {
     @ObservedObject var store: AppState
     @ObservedObject var navigation: SettingsNavigation
+    var openYouTube: () -> Void = {}
     @State private var showDelete = false
     @Environment(\.accessibilityReduceMotion) private var reducedMotion
     @Namespace private var selectionIndicator
@@ -31,7 +32,9 @@ struct SettingsView: View {
                 }
                 ZStack(alignment: .topLeading) {
                     Group {
-                        if navigation.page == "library" { libraryPage }
+                        if navigation.page == "controls" { controlsPage }
+                        else if navigation.page == "audio-library" { audioLibraryPage }
+                        else if navigation.page == "library" { libraryPage }
                         else if navigation.page == "general" { generalPage }
                         else if let phase { phasePage(phase) }
                     }
@@ -62,42 +65,48 @@ struct SettingsView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Image(systemName: "sun.horizon.fill").font(.system(size: 26, weight: .light)).foregroundStyle(Palette.accent)
-                Text("Stillday").font(.system(size: 24, weight: .semibold, design: .rounded)).tracking(-0.8)
-            }.padding(.top, 38).padding(.bottom, 5)
-            Text("A little closer to outside.").font(.system(size: 11)).foregroundStyle(Palette.muted).padding(.bottom, 36)
-            HStack {
-                eyebrow("YOUR RHYTHM")
-                Spacer()
-                Button {
-                    if let id = store.addPhase() { navigation.selection = id; navigation.page = "phase" }
-                } label: { Image(systemName: "plus").font(.system(size: 12, weight: .medium)) }
-                .buttonStyle(InteractiveButtonStyle()).help("Add a phase").accessibilityLabel("Add a phase")
-            }.padding(.bottom, 12)
-            ForEach(store.sortedPhases) { phase in
-                Button {
-                    navigation.selection = phase.id; navigation.page = "phase"
-                } label: {
-                    HStack(spacing: 11) {
-                        Image(systemName: symbol(for: phase)).font(.system(size: 18, weight: .light)).frame(width: 22)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(phase.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                            Text(phase.timeLabel).font(.system(size: 10, design: .monospaced)).foregroundStyle(Palette.muted)
-                        }
-                        Spacer(minLength: 2)
-                        if store.activePhaseID == phase.id {
-                            Circle().fill(Palette.accent).frame(width: 5, height: 5).help("Current scheduled phase")
-                        }
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "sun.horizon.fill").font(.system(size: 26, weight: .light)).foregroundStyle(Palette.accent)
+                        Text("Stillday").font(.system(size: 24, weight: .semibold, design: .rounded)).tracking(-0.8)
+                    }.padding(.top, 38).padding(.bottom, 5)
+                    Text("A little closer to outside.").font(.system(size: 11)).foregroundStyle(Palette.muted).padding(.bottom, 18)
+                    navButton("Controls", symbol: "play.circle", target: "controls").padding(.bottom, 22)
+                    HStack {
+                        eyebrow("YOUR RHYTHM")
+                        Spacer()
+                        Button {
+                            if let id = store.addPhase() { navigation.selection = id; navigation.page = "phase" }
+                        } label: { Image(systemName: "plus").font(.system(size: 12, weight: .medium)) }
+                        .buttonStyle(InteractiveButtonStyle()).help("Add a phase").accessibilityLabel("Add a phase")
+                    }.padding(.bottom, 12)
+                    ForEach(store.sortedPhases) { phase in
+                        Button {
+                            navigation.selection = phase.id; navigation.page = "phase"
+                        } label: {
+                            HStack(spacing: 11) {
+                                Image(systemName: symbol(for: phase)).font(.system(size: 18, weight: .light)).frame(width: 22)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(phase.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                                    Text(phase.timeLabel).font(.system(size: 10, design: .monospaced)).foregroundStyle(Palette.muted)
+                                }
+                                Spacer(minLength: 2)
+                                if store.activePhaseID == phase.id {
+                                    Circle().fill(Palette.accent).frame(width: 5, height: 5).help("Current scheduled phase")
+                                }
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 12)
+                            .background { selectionBackground(navigation.page == "phase" && self.phase?.id == phase.id) }
+                            .contentShape(Rectangle())
+                        }.buttonStyle(InteractiveButtonStyle()).padding(.horizontal, -10).padding(.bottom, 4)
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 12)
-                    .background { selectionBackground(navigation.page == "phase" && self.phase?.id == phase.id) }
-                    .contentShape(Rectangle())
-                }.buttonStyle(InteractiveButtonStyle()).padding(.horizontal, -10).padding(.bottom, 4)
-            }
-            Rectangle().fill(Palette.line).frame(height: 1).padding(.vertical, 22)
-            navButton("Wallpaper library", symbol: "square.grid.2x2", target: "library")
-            navButton("Preferences", symbol: "slider.horizontal.3", target: "general")
+                    Rectangle().fill(Palette.line).frame(height: 1).padding(.vertical, 22)
+                    navButton("Wallpaper library", symbol: "square.grid.2x2", target: "library")
+                    navButton("Audio library", symbol: "music.note.list", target: "audio-library")
+                    navButton("Preferences", symbol: "slider.horizontal.3", target: "general")
+                }.padding(.horizontal, 10)
+            }.padding(.horizontal, -10)
             Spacer()
             VStack(alignment: .leading, spacing: 13) {
                 HStack {
@@ -113,6 +122,77 @@ struct SettingsView: View {
             .padding(.bottom, 24)
         }
         .padding(.horizontal, 24).background(Palette.sidebar.opacity(0.55))
+    }
+
+    private var controlsPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                pageHeader("RIGHT NOW", title: "Controls", subtitle: "Change the view or sound while your day keeps its rhythm.")
+                MenuBarView(store: store,
+                    openSettings: { navigation.page = "general" },
+                    openYouTube: openYouTube,
+                    quit: { NSApp.terminate(nil) },
+                    embedded: true)
+                    .clipShape(RoundedRectangle(cornerRadius: 17))
+            }.padding(32)
+        }
+    }
+
+    private var audioLibraryPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                pageHeader("SOUND FOR YOUR DAY", title: "Audio library", subtitle: "Switch tracks for the current phase without changing its saved audio.")
+                HStack {
+                    Label("\(store.preferences.audioLibraryPaths.count) \(store.preferences.audioLibraryPaths.count == 1 ? "track" : "tracks")", systemImage: "music.note.list").foregroundStyle(Palette.muted)
+                    Spacer()
+                    Button("Add audio files…") { store.importAudio() }.buttonStyle(.borderedProminent)
+                }
+                Text("Original files stay where they are. Removing a track here keeps its file and phase assignments.")
+                    .font(.system(size: 11)).foregroundStyle(Palette.muted)
+                if !store.preferences.enabled || !store.preferences.audioEnabled {
+                    Text("Enable Stillday and Ambient sound in Controls to play a temporary track.")
+                        .font(.system(size: 11)).foregroundStyle(Palette.muted)
+                }
+                if store.preferences.audioLibraryPaths.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Image(systemName: "waveform").font(.system(size: 27, weight: .light))
+                        Text("A sound for right now.").font(.system(size: 21, weight: .medium, design: .rounded))
+                        Text("Add local audio files, then choose one here or in the menu bar.").foregroundStyle(Palette.muted)
+                    }.padding(.vertical, 30)
+                } else {
+                    LazyVStack(spacing: 0) {
+                        ForEach(store.preferences.audioLibraryPaths, id: \.self) { path in
+                            audioLibraryRow(path)
+                            Divider()
+                        }
+                    }
+                }
+                if store.audioOverride != nil {
+                    Button("Follow schedule") { store.followAudioSchedule() }.buttonStyle(.link)
+                }
+            }.padding(32)
+        }
+    }
+
+    private func audioLibraryRow(_ path: String) -> some View {
+        let readable = FileManager.default.isReadableFile(atPath: path)
+        let selected = store.audioOverride?.path == path
+        let title = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        return HStack(spacing: 14) {
+            Image(systemName: selected ? "waveform" : "music.note")
+                .font(.system(size: 19, weight: .light)).foregroundStyle(Palette.accent).frame(width: 26)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.system(size: 13, weight: .medium)).lineLimit(1).help(path)
+                Text(!readable ? "File missing or unreadable" : selected ? "Temporary audio · returns at the next phase" : "Local audio")
+                    .font(.system(size: 10)).foregroundStyle(readable ? Palette.muted : Palette.errorInk)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Button(selected ? "Selected" : "Play") { store.selectAudio(path) }
+                .disabled(!readable || !store.preferences.enabled || !store.preferences.audioEnabled)
+                .accessibilityLabel("Play \(title) temporarily")
+            Button { store.removeAudio(path) } label: { Image(systemName: "minus.circle").padding(5) }
+                .buttonStyle(InteractiveButtonStyle()).help("Remove from library; keep the file and phase audio")
+                .accessibilityLabel("Remove \(title) from audio library")
+        }.padding(.vertical, 17)
     }
 
     private func phasePage(_ phase: Phase) -> some View {

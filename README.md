@@ -78,6 +78,12 @@ YouTube requires an internet connection. Background audio uses unofficial extrac
 
 Click the menu-bar icon for quick controls. The gear opens Settings, and the power button quits the app.
 
+Opening Stillday also shows **Controls** in its main window, with the same wallpaper, pause, and sound controls as the menu-bar panel. The sidebar keeps your phases and Preferences available.
+
+Add local tracks in **Audio library**. Existing phase tracks appear there when older settings are loaded. Files stay in their original locations; removing a library entry keeps its file and saved phase assignments. Choosing a local track for a phase also adds it to the library.
+
+With Stillday and Ambient sound enabled, choose an **Audio track** in either control surface to play it temporarily. This does not change the phase’s saved audio. The override survives pausing and closing the window, and ends at the next phase boundary, when you choose **Follow schedule**, or when you quit Stillday. Removing the selected library entry also returns playback to the phase audio. Scheduled local audio and YouTube sources remain available.
+
 On macOS Tahoe, an enabled Stillday menu-bar switch can still be overridden by another app’s disabled entry. One verified case linked Stillday to ChatGPT’s **Allow in the Menu Bar** switch: enabling ChatGPT immediately restored Stillday, and disabling it hid Stillday again. If this affects you, check that switch in System Settings → Menu Bar. Stillday does not rewrite macOS’s permission records. See [verification notes](Verification.md) for the observed limits.
 
 - **Wallpaper** and **Ambient sound** can be enabled independently.

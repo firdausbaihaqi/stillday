@@ -6,12 +6,22 @@ struct MenuBarView: View {
     var openSettings: () -> Void
     var openYouTube: () -> Void
     var quit: () -> Void
+    var embedded = false
     @Environment(\.accessibilityReduceMotion) private var reducedMotion
 
     private var path: String? { store.currentWallpaper ?? store.activePhase?.wallpapers.first }
     private var canChangeWallpaper: Bool { store.preferences.enabled && store.preferences.wallpaperEnabled && !(store.activePhase?.wallpapers.isEmpty ?? true) }
 
     var body: some View {
+        if embedded { content }
+        else {
+            ScrollView { content }
+                .frame(width: 360, height: 700)
+                .background(WallpaperGlass(path: path))
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .topTrailing) {
                 if let path {
@@ -47,13 +57,7 @@ struct MenuBarView: View {
                     feature("Wallpaper", symbol: "desktopcomputer", enabled: store.preferences.wallpaperEnabled) { store.update { $0.wallpaperEnabled.toggle() } }
                     feature("Ambient sound", symbol: "waveform", enabled: store.preferences.audioEnabled) { store.update { $0.audioEnabled.toggle() } }
                 }
-                if store.preferences.audioEnabled {
-                    HStack(spacing: 6) {
-                        Image(systemName: store.audioPlaying ? "speaker.wave.2" : "speaker.slash")
-                            .contentTransition(reducedMotion ? .opacity : .symbolEffect(.replace))
-                        Text(store.preferences.enabled ? store.audioStatus : "Sound paused with Stillday").lineLimit(1)
-                    }.font(.system(size: 10)).foregroundStyle(Palette.muted)
-                }
+                AudioControlsView(store: store)
                 if let phase = store.activePhase, !phase.wallpapers.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 9) {
@@ -68,7 +72,7 @@ struct MenuBarView: View {
                         }.padding(2)
                     }.frame(height: 47)
                 }
-                if store.activePhase?.audioSource == .youtube && store.preferences.enabled && store.preferences.audioEnabled {
+                if store.effectiveAudioSource == .youtube && store.preferences.enabled && store.preferences.audioEnabled {
                     Button("Show YouTube player", action: openYouTube).buttonStyle(.link).font(.system(size: 11))
                 }
                 if let error = store.error {
@@ -86,7 +90,7 @@ struct MenuBarView: View {
                 }.padding(.top, 13).overlay(alignment: .top) { Rectangle().fill(Palette.line).frame(height: 1) }
             }.padding(22)
         }
-        .frame(width: 360)
+        .frame(maxWidth: .infinity)
         .foregroundStyle(Palette.ink)
         .background(WallpaperGlass(path: path))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.13)))

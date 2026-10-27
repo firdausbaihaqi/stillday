@@ -2,17 +2,28 @@
 
 Verified on 24 October 2026 with Apple Silicon, macOS 26.5.1, and Swift 6.3.3 Command Line Tools. The deployment target remains macOS 14. Earlier macOS releases and Intel hardware were not exercised.
 
-## 27 October: audio library and temporary playback model
+## 27 October: Controls, audio library, and menu-bar permission coupling
 
-Local audio paths now persist independently of phase assignments. Older settings seed them from phase tracks; explicit empty libraries stay empty. Temporary playback overrides are runtime-only, survive pause/resume, and expire at the next boundary or manual reset. Removing a library reference preserves its file and phase assignments. Playback uses the existing native player and cancels pending YouTube resolution when switching sources.
+Version 0.4.0 opens on Controls. The main window and menu-bar panel share the same controls and audio selection state. Audio library imports local files by reference, supports multiple selection, and removes references without deleting files or rewriting phase assignments. Older settings seed the library from existing phase tracks; an explicitly emptied library stays empty after reload.
 
-The new core tests first failed on missing APIs, then passed 68/68 assertions. The isolated native fixture verified actual playback advancement, unchanged saved defaults, pause/resume, manual reset, expiry, file-preserving removal, missing-track rejection, pending-extraction replacement, and restoration of the scheduled YouTube source. See [native report](docs/verification/audio-library-native.json). Its diagnostic menu-bar geometry is not production visual evidence. The user-facing Controls and library pages are the next feature phase.
-
-## 27 October: menu-bar permission recovery
+Temporary track selection changes runtime playback only. It returns to the phase source at the captured next boundary, on Follow schedule, on removal of the selected entry, or after quitting. It survives pause/resume and window closing. Expiry uses a deadline as well as the phase identity, covering one-phase schedules and wake after a missed boundary. The timer honors the earlier of that deadline and the current schedule boundary, including while paused.
 
 The menu-bar investigation found a reproducible permission coupling in the unchanged installed app: enabling **ChatGPT → Allow in the Menu Bar** produced an immediate ControlCenter `Unblocking host` event for Stillday, and the user confirmed the sunrise icon appeared. Restoring ChatGPT’s disabled setting produced `Moving host to blocked list` for the same Stillday process. The user then approved keeping ChatGPT enabled. Claude’s setting was left unchanged. This is a supported-UI workaround; the underlying cross-app permission association remains. No protected permission records, production bundle ID, or signing requirements were changed. The [CodexBar report](https://github.com/steipete/CodexBar/issues/1440) supplied the cross-app association hypothesis; the toggled Stillday result was verified locally rather than inferred from that report.
 
-The same running app became unblocked with ChatGPT enabled and was blocked again when it was disabled. No application code or signature changed during that comparison. Internal status-item flags and the archived display-intersection reports are not visual evidence.
+Validation:
+
+- `swift run StilldayChecks`: **68/68** assertions passed, including 19 new library/migration/deadline assertions. New tests first failed compilation on the missing library and override APIs, then passed after implementation.
+- `./scripts/build.sh`: release build passed. The new native regression checks first failed compilation on missing AppState override APIs, then built and ran after implementation.
+- `./scripts/smoke-test.sh --audio-fixture=<muted generated WAV>`: real playback advanced through temporary selection and resume; selection preserved saved preferences; manual reset, expiry, missing selection rejection, reference-only removal, pending YouTube extraction replacement, and restoration of the scheduled YouTube source passed. See [path-free native report](docs/verification/audio-library-native.json).
+- Minimize/restore, closing Settings with continued local playback, and regular/accessory activation policy checks passed in the isolated native fixture.
+- Native UI: Controls enabled the muted fixture, the picker changed to Temporary audio with an expiry time, Audio library reflected the same selection, removal cleared it, and the native file chooser imported the WAV again. These preview operations used synthetic volatile settings. Production opened on Controls after installation, with personal settings still byte-identical to the pre-update backup.
+- `git diff --check`, `plutil -lint Resources/Info.plist`, `zsh -n scripts/build.sh scripts/install.sh scripts/smoke-test.sh`, and strict bundle signature validation passed. No lint tool or coverage-percentage workflow is configured; no coverage percentage is claimed.
+
+After installing 0.4.0 and reopening it from Applications, the user confirmed: **“Visible, and the updated controls open.”** This verifies actual icon visibility and physical click access to the updated panel, separately from the internal checks.
+
+After that interaction, the persisted settings contained the new `audioLibraryPaths` field. All pre-existing fields, including complete phase assignments and the wallpaper library, still matched the backup.
+
+The native report’s `menuBarAnchorNearTop: false` is retained honestly: its diagnostic identity does not prove production visibility. Visibility-request flags and programmatic popover opening remain internal checks. The old loose screen-intersection test was replaced with a top-edge geometry check. No overnight schedule run, new reboot cycle after installation, Intel/older macOS run, audible-listening test, or long YouTube stream replay was performed for this update. Background YouTube source restoration was checked at connection start, not as a completed network playback test.
 
 ## 26 October: menu-bar visibility remains under investigation
 
