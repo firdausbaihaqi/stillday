@@ -34,6 +34,14 @@ struct AudioControlsView: View {
                 Text(!store.preferences.enabled ? "Sound paused with Stillday" : !store.preferences.audioEnabled ? "Turn on Ambient sound to choose a track." : store.audioStatus)
                     .lineLimit(2).help(store.audioStatus)
             }.font(.system(size: 10)).foregroundStyle(Palette.muted)
+            HStack(spacing: 10) {
+                Image(systemName: "speaker.wave.2").foregroundStyle(Palette.muted)
+                Slider(value: Binding(get: { store.preferences.volume }, set: { value in store.update { $0.volume = value } }), in: 0...1, step: 0.01)
+                    .accessibilityLabel("Ambient volume")
+                    .accessibilityValue("\(Int((store.preferences.volume * 100).rounded())) percent")
+                Text("\(Int((store.preferences.volume * 100).rounded()))%")
+                    .monospacedDigit().frame(width: 34, alignment: .trailing)
+            }.font(.system(size: 11))
             if let selection = store.audioOverride {
                 Text("Returns to phase audio at \(selection.expiresAt.formatted(date: .omitted, time: .shortened)).")
                     .font(.system(size: 10)).foregroundStyle(Palette.muted)

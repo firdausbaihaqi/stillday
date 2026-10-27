@@ -2,6 +2,14 @@
 
 Verified on 24 October 2026 with Apple Silicon, macOS 26.5.1, and Swift 6.3.3 Command Line Tools. The deployment target remains macOS 14. Earlier macOS releases and Intel hardware were not exercised.
 
+## 27 October: shared volume control
+
+Version 0.4.1 adds a 0–100% volume slider to the shared audio controls, with a percentage label and accessible value. The main window, menu-bar panel, and Preferences use the same saved volume. It can be adjusted while sound is off and applies to active native playback and temporary selections through the existing reconciliation path.
+
+`./scripts/build.sh` and `swift run StilldayChecks` passed (68/68 core assertions). The isolated native fixture verified actual player volume changes and mute without replacing the temporary selection; all playback, cancellation, and window assertions passed. See [volume report](docs/verification/volume-native.json). One initial fixed-delay playback assertion failed; it was replaced with a bounded wait for actual advancement before the passing rerun. The source change is in the test fixture, not the playback engine.
+
+Native UI verification incremented the new slider from 0% to 1% in an isolated preview and confirmed Preferences also showed 1%. The installed 0.4.1 bundle passed strict signature validation. Audible output and remote YouTube volume were not separately measured; these changes reuse the existing volume handling.
+
 ## 27 October: Controls, audio library, and menu-bar permission coupling
 
 Version 0.4.0 opens on Controls. The main window and menu-bar panel share the same controls and audio selection state. Audio library imports local files by reference, supports multiple selection, and removes references without deleting files or rewriting phase assignments. Older settings seed the library from existing phase tracks; an explicitly emptied library stays empty after reload.

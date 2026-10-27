@@ -80,6 +80,8 @@ Click the menu-bar icon for quick controls. The gear opens Settings, and the pow
 
 Opening Stillday also shows **Controls** in its main window, with the same wallpaper, pause, and sound controls as the menu-bar panel. The sidebar keeps your phases and Preferences available.
 
+Use the volume slider in either control surface to adjust audio from 0–100%. Both sliders and Preferences share the same saved volume, including for temporary tracks. You can set it before enabling sound.
+
 Add local tracks in **Audio library**. Existing phase tracks appear there when older settings are loaded. Files stay in their original locations; removing a library entry keeps its file and saved phase assignments. Choosing a local track for a phase also adds it to the library.
 
 With Stillday and Ambient sound enabled, choose an **Audio track** in either control surface to play it temporarily. This does not change the phase’s saved audio. The override survives pausing and closing the window, and ends at the next phase boundary, when you choose **Follow schedule**, or when you quit Stillday. Removing the selected library entry also returns playback to the phase audio. Scheduled local audio and YouTube sources remain available.

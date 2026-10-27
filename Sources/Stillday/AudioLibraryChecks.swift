@@ -20,6 +20,10 @@ enum AudioLibraryChecks {
         }
         let playsOverride = store.audioPlaying && store.audioPlaybackSeconds >= 0.25 && store.effectiveAudioPath == alternative.path
         let defaultsUnchanged = store.preferences == saved
+        store.update { $0.volume = 0.23 }
+        let volumeUpdatedLive = abs((store.audioPlaybackVolume ?? -1) - 0.23) < 0.001 && store.audioOverride?.path == alternative.path
+        store.update { $0.volume = 0 }
+        let volumeMutedLive = store.audioPlaybackVolume == 0 && store.audioOverride?.path == alternative.path
         store.update { $0.enabled = false }
         let overrideWhilePaused = store.audioOverride?.path == alternative.path && !store.audioPlaying
         store.update { $0.enabled = true }
@@ -62,6 +66,8 @@ enum AudioLibraryChecks {
             "audioLibraryDeduplicated": libraryDeduplicated,
             "audioOverrideAdvanced": playsOverride,
             "audioOverridePreservedDefaults": defaultsUnchanged,
+            "volumeUpdatedLive": volumeUpdatedLive,
+            "volumeMutedLive": volumeMutedLive,
             "audioOverrideSurvivedPause": overrideWhilePaused,
             "audioOverrideResumed": overrideResumed,
             "followAudioScheduleRestoredSource": followsSchedule,

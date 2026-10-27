@@ -263,6 +263,8 @@ final class AppState: ObservableObject {
         playAudio(url: URL(fileURLWithPath: phase.audioPath), source: phase.audioPath, title: URL(fileURLWithPath: phase.audioPath).deletingPathExtension().lastPathComponent)
     }
 
+    var audioPlaybackVolume: Float? { player?.volume }
+
     var audioPlaybackSeconds: Double {
         let seconds = player?.currentTime().seconds ?? 0
         return seconds.isFinite ? seconds : 0
