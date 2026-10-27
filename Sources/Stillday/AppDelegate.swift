@@ -14,7 +14,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
     private let navigation = SettingsNavigation()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
         let benchmark = ProcessInfo.processInfo.arguments.contains("--benchmark-navigation")
         let interactivePreview = ProcessInfo.processInfo.arguments.contains("--preview-controls")
         let diagnostic = ProcessInfo.processInfo.arguments.contains("--smoke-test") || benchmark || interactivePreview
@@ -22,7 +21,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         store = AppState(diagnosticMode: diagnostic, settingsOverride: diagnostic ? settings : nil)
         installAppMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "sun.horizon", accessibilityDescription: "Stillday")
+        item.autosaveName = "StilldayControls"
+        item.behavior = []
+        item.isVisible = true
+        let icon = NSImage(systemSymbolName: "sun.horizon.fill", accessibilityDescription: "Stillday")
+        icon?.isTemplate = true
+        icon?.size = NSSize(width: 18, height: 18)
+        item.button?.image = icon
+        item.button?.setAccessibilityLabel("Stillday quick controls")
         item.button?.target = self
         item.button?.action = #selector(togglePopover)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -63,7 +69,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
         UserDefaults.standard.set(true, forKey: "hasLaunched")
     }
 
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showSettings(); return true }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        statusItem?.isVisible = true
+        showSettings()
+        return true
+    }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) { store?.shutdown() }
 
@@ -249,6 +259,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
             self.store.update { $0.enabled = false }
             try? await Task.sleep(for: .milliseconds(500))
             let pendingAudioCancelled = !self.store.audioPlaying && self.store.audioStatus == "Ambient sound is off"
+            let menuBarVisibilityRequested = self.statusItem?.isVisible == true
+            self.statusItem?.isVisible = false
+            _ = self.applicationShouldHandleReopen(NSApp, hasVisibleWindows: true)
+            let menuDeadline = ContinuousClock.now.advanced(by: .seconds(2))
+            while self.statusItem?.button?.window == nil, ContinuousClock.now < menuDeadline { try? await Task.sleep(for: .milliseconds(20)) }
+            let anchor = self.statusItem?.button?.window?.frame ?? .zero
+            let menuBarAnchorNearTop = anchor.width > 0 && NSScreen.screens.contains { screen in
+                anchor.minX >= screen.frame.minX && anchor.maxX <= screen.frame.maxX
+                    && abs(anchor.maxY - screen.frame.maxY) < 2
+                    && anchor.height >= NSStatusBar.system.thickness - 2
+            }
+            self.statusItem?.button?.performClick(nil)
+            let panelDeadline = ContinuousClock.now.advanced(by: .seconds(2))
+            while self.popover?.isShown != true, ContinuousClock.now < panelDeadline { try? await Task.sleep(for: .milliseconds(20)) }
+            let quickControlsOpened = self.popover?.isShown == true
+            self.popover?.performClose(nil)
             let report: [String: Any] = [
                 "libraryCount": self.store.library.count,
                 "phaseCount": self.store.preferences.phases.count,
@@ -274,6 +300,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSPo
                 "masterPauseStoppedAudio": !self.store.audioPlaying,
                 "audioTestEnabledMaster": fixture == nil || expectedEnabled,
                 "menuInstalled": self.statusItem?.button?.action != nil,
+                "menuBarVisibilityRequested": menuBarVisibilityRequested,
+                "menuBarRestoredOnReopen": self.statusItem?.isVisible == true,
+                "menuBarAnchorNearTop": menuBarAnchorNearTop,
+                "menuBarImageAvailable": self.statusItem?.button?.image != nil,
+                "quickControlsOpened": quickControlsOpened,
                 "minimizeCommandWorks": minimized,
                 "restoresMinimizedWindow": self.window?.isMiniaturized == false,
                 "audioStopped": !self.store.audioPlaying

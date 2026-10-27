@@ -42,13 +42,14 @@ Once the tools are installed, run:
 ```sh
 git clone https://github.com/firdausbaihaqi/stillday.git
 cd stillday
-./scripts/build.sh
-open -R ../Stillday.app
+./scripts/install.sh
 ```
 
-Finder will show the newly built **Stillday.app**. Drag it into **Applications**, then open it.
+The installer builds Stillday, copies it into **Applications**, registers it with macOS, and opens it. Quit Stillday before running the installer again to update it.
 
-This is an early build, signed locally rather than notarized by Apple. Move it to its final location before enabling **Launch at login**.
+You can reopen it from **Applications → Stillday**, or press **⌘Space**, type **Stillday**, and press Return. Opening it again restores Settings even when the app is already running in the menu bar.
+
+This is an early build, signed locally rather than notarized by Apple. Enable **Launch at login** only after installing it.
 
 ## Set up your day
 
@@ -77,9 +78,11 @@ YouTube requires an internet connection. Background audio uses unofficial extrac
 
 Click the menu-bar icon for quick controls. The gear opens Settings, and the power button quits the app.
 
+On macOS Tahoe, an enabled Stillday menu-bar switch can still be overridden by another app’s disabled entry. One verified case linked Stillday to ChatGPT’s **Allow in the Menu Bar** switch: enabling ChatGPT immediately restored Stillday, and disabling it hid Stillday again. If this affects you, check that switch in System Settings → Menu Bar. Stillday does not rewrite macOS’s permission records. See [verification notes](Verification.md) for the observed limits.
+
 - **Wallpaper** and **Ambient sound** can be enabled independently.
 - **Pause** stops scheduling and sound, leaving the current wallpaper in place.
-- Settings appears in the Dock and **⌘Tab** while its window is open. **⌘W** minimizes it while sound keeps playing; open Settings again to restore it. Closing the window returns Stillday to the menu bar and keeps background audio running.
+- Settings appears in the Dock and **⌘Tab** while its window is open. **⌘W** minimizes it while sound keeps playing; open Settings again to restore it. Closing the window hides the Dock icon and keeps Stillday in the top menu bar, with background audio running. Use its menu-bar gear, Applications, or Spotlight to reopen Settings.
 - **Preferences** contains appearance, volume, and launch-at-login options.
 
 Quitting also leaves the last wallpaper in place; Stillday does not automatically restore your previous wallpaper.
@@ -90,6 +93,6 @@ Built with Swift and Apple’s native frameworks. Background YouTube audio optio
 
 - [Learn the app through its commits](docs/LEARNING_PATH.md)
 - [Read the test results, performance measurements, and current limitations](Verification.md)
-- Run the regression checks with `swift run StilldayChecks`.
+- Run the regression checks with `swift run StilldayChecks`. After building, run native checks with `./scripts/smoke-test.sh --audio-fixture=/absolute/path/to/test.wav`; the fixture uses a separate app identity and muted audio.
 
 Settings are stored in `~/Library/Application Support/Stillday/settings.json`. Personal settings, photos, and audio are not stored in this repository.

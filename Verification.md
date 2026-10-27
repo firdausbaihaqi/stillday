@@ -2,6 +2,26 @@
 
 Verified on 24 October 2026 with Apple Silicon, macOS 26.5.1, and Swift 6.3.3 Command Line Tools. The deployment target remains macOS 14. Earlier macOS releases and Intel hardware were not exercised.
 
+## 27 October: menu-bar permission recovery
+
+The menu-bar investigation found a reproducible permission coupling in the unchanged installed app: enabling **ChatGPT → Allow in the Menu Bar** produced an immediate ControlCenter `Unblocking host` event for Stillday, and the user confirmed the sunrise icon appeared. Restoring ChatGPT’s disabled setting produced `Moving host to blocked list` for the same Stillday process. The user then approved keeping ChatGPT enabled. Claude’s setting was left unchanged. This is a supported-UI workaround; the underlying cross-app permission association remains. No protected permission records, production bundle ID, or signing requirements were changed. The [CodexBar report](https://github.com/steipete/CodexBar/issues/1440) supplied the cross-app association hypothesis; the toggled Stillday result was verified locally rather than inferred from that report.
+
+The same running app became unblocked with ChatGPT enabled and was blocked again when it was disabled. No application code or signature changed during that comparison. Internal status-item flags and the archived display-intersection reports are not visual evidence.
+
+## 26 October: menu-bar visibility remains under investigation
+
+The user reports that the icon is still absent on both displays. The prior `NSStatusItem.isVisible` and display-intersection checks did not establish actual top-bar visibility: Apple's SDK documents that `isVisible` can remain true even when an item is obscured. In the closed-Settings probe, the NSStatusBarWindow reported `{{0, -7}, {38, 22}}`, which intersects the bottom of the primary display rather than its menu bar. Do not treat that intersection or a programmatic popover opening as proof that a user can see the icon.
+
+System Settings listed two Stillday entries and an old baseline entry under Allow in the Menu Bar. Both Stillday switches were already on; they were toggled off and back on without changing other app controls. Subsequent user screenshots confirmed ample space and no Stillday icon on either display, so this was not a confirmed fix.
+
+Version 0.3.1 restores the original `LSUIElement` background-app declaration and removes the initial runtime activation-policy switch. This is a startup-registration hypothesis, pending visual confirmation. Installation still places the app in Applications; Spotlight indexing found that copy after the agent flag was restored. The installer unregisters its build-output copy before registering the installed app. Native checks now run through `scripts/smoke-test.sh`, which signs a separate `day.stillday.checks` fixture so checks do not compete with the real app's status-item identity. The isolated fixture passed playback, minimize/close/reopen, and internal status-item checks. Those status-item checks still do not establish visual appearance. Build, installed signature, plist validation, and 49/49 core checks passed. The installed app was left running with Settings closed and Dock hidden.
+
+## 25 October: installation and reopening
+
+This experiment added a stable autosave identity, explicit visibility requests on launch/reopen, and an explicitly sized template image. The native checks deliberately hid the item, reopened the app, accepted a loose display intersection, and opened Quick Controls programmatically. Two launches recorded those internal checks as passing ([first](docs/verification/menu-bar-first-launch.json), [second](docs/verification/menu-bar-second-launch.json)); neither established actual icon visibility. The archived reports retain the original weak fields. Window activation policy and background playback passed, as did the release build, signature validation, and 49/49 core checks. The temporary always-visible Dock change was removed after clarifying which icon was missing.
+
+`scripts/install.sh` built the app, installed it in `/Applications`, registered it with Launch Services, and opened it. That installation experiment temporarily removed the UI-element declaration; version 0.3.1 restored it. The runtime hides the Dock icon when Settings closes. Settings remains eligible for ⌘Tab while open. Spotlight metadata and `mdfind` identified the installed bundle, AppKit resolved its bundle identifier to the Applications copy, and the app appeared in the system application inventory. Minimizing Settings with ⌘W and reopening by bundle identifier restored the same window. Code-signature validation, plist validation, installer syntax validation, the running-app installer guard, and 49/49 core checks passed. Direct Spotlight UI automation timed out; Spotlight indexing was verified through its metadata tools.
+
 ## 25 October: background YouTube audio and standard Settings window
 
 Follow-up fix for silent long tracks: the three-hour ambient track reproduced a native player stuck at zero playback time with the direct M4A URL. Its audio-only HLS stream started promptly and advanced normally. Resolution now prefers audio-only HLS, and streamed tracks start directly rather than waiting for AVPlayerLooper preparation. End-of-track handling resolves a fresh URL before repeating. Buffering is shown explicitly, item failures are surfaced, and a 30-second startup timeout prevents an indefinite silent wait.
@@ -19,8 +39,8 @@ The standard Settings window and three source choices were inspected in the runn
 Reproduce with `./scripts/build.sh`, `swift run StilldayChecks`, and the native app executable:
 
 ```sh
-../Stillday.app/Contents/MacOS/Stillday --smoke-test --audio-fixture=/absolute/path/to/test.wav
-../Stillday.app/Contents/MacOS/Stillday --smoke-test '--youtube-fixture=https://youtu.be/jNQXAC9IVRw'
+./scripts/smoke-test.sh --audio-fixture=/absolute/path/to/test.wav
+./scripts/smoke-test.sh '--youtube-fixture=https://youtu.be/jNQXAC9IVRw'
 ```
 
 Background playback uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) only during stream resolution, followed by native AVQueuePlayer playback. [YouTubeKit](https://github.com/alexeichhorn/YouTubeKit) was also researched; its local extraction is an alternative, but the optional remote fallback forwards requests through a third-party server. Stillday uses neither that library nor its remote service. yt-dlp is installed separately with Homebrew and can be updated independently of Stillday. Local audio and the visible embedded player remain available without it.
